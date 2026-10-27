@@ -24,7 +24,7 @@ Publikumsbarometer und ein Hinweis vor dem Spielstart.
 | `tests/screenshot.gd` | Bildschirmfoto nach n Schritten der Komplettlösung |
 | `tools/check_game.py` | Prüft die Daten und simuliert die Komplettlösung ohne Godot |
 | `tools/asset_manifest.py` | Erzeugt `art/manifest.json` und Layoutvorlagen für ComfyUI |
-| `demo/` | Kleines Testspiel für die Engine selbst |
+| `demo/` | Kleines Testspiel für die Engine selbst (`project.godot.demo`) |
 | `docs/format.md` | Das Datenformat |
 
 ## In ein Spiel einbinden

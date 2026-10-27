@@ -8,6 +8,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 cp -r "$ENGINE/demo/." "$WORK/"
 rm -f "$WORK/.gdignore"
+mv "$WORK/project.godot.demo" "$WORK/project.godot"
 mkdir -p "$WORK/addons/game_engine"
 tar -C "$ENGINE" --exclude=.git --exclude=demo -cf - . | tar -C "$WORK/addons/game_engine" -xf -
 python3 "$ENGINE/tools/check_game.py" --root="$WORK"
