@@ -1,0 +1,21 @@
+{
+  "id": "werkstatt",
+  "name": "Werkstatt",
+  "art_prompt": "small workshop",
+  "bg": {"wall": "#3a3028", "floor": "#241c16", "floor_y": 100},
+  "walk": [20, 104, 300, 138],
+  "entries": {"start": [60, 120], "hof": [280, 120]},
+  "hotspots": [
+    {"id": "kiste", "name": "Kiste", "rect": [40, 80, 30, 20], "color": "#7a5a3a",
+     "verbs": {"open": [["if", "!kiste_offen", [["set", "kiste_offen"], ["give", "gluehbirne"], ["say", "heldin", "Eine Glühbirne!"]], [["say", "heldin", "Leer."]]]],
+               "look": [["say", "heldin", "Eine Kiste."]]}},
+    {"id": "lampe", "name": "Lampe", "rect": [140, 20, 20, 20], "sprite": true, "color": "#555555",
+     "color_variants": {"lampe_an": "#ffee88"}, "art_variants": {"lampe_an": "an"},
+     "verbs": {"use:gluehbirne": [["remove", "gluehbirne"], ["set", "lampe_an"], ["medal", "lampe"]]}},
+    {"id": "tuer", "name": "Tür zum Hof", "rect": [286, 50, 30, 54], "color": "#5a4a3a",
+     "exit": "hof", "entry": "werkstatt", "exit_if": "has:schluessel",
+     "exit_blocked": [["say", "heldin", "Abgeschlossen. Der Nachbar hat den Schlüssel."]]},
+    {"id": "nachbar", "name": "Nachbar", "rect": [200, 60, 16, 44], "speaker": "nachbar", "color": "#4a7a4a",
+     "default": "talk", "verbs": {"talk": [["dialog", "nachbar"]]}}
+  ]
+}

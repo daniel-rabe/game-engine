@@ -1,0 +1,18 @@
+{
+  "title": "Engine-Demo",
+  "start_room": "werkstatt",
+  "start_entry": "start",
+  "player": {"id": "heldin"},
+  "rooms": ["werkstatt", "hof"],
+  "characters": {
+    "heldin": {"name": "Heldin", "color": "#ffd27f"},
+    "text": {"name": "", "color": "#ffffff"},
+    "nachbar": {"name": "Nachbar", "color": "#9fff9f"}
+  },
+  "medal_label": {"one": "Abzeichen", "many": "Abzeichen"},
+  "medals": {"lampe": "Lampe repariert"},
+  "intro": [
+    ["title", "ENGINE-DEMO"],
+    ["say", "heldin", "Mal sehen, ob alles funktioniert."]
+  ]
+}

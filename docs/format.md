@@ -1,0 +1,134 @@
+# Datenformat
+
+Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res://data/`.
+
+| Datei | Inhalt |
+| --- | --- |
+| `data/game.json` | Titel, Startraum, Spielfigur, Figuren, Sammelobjekte, Intro, Stil der Grafiken |
+| `data/items.json` | Gegenstände: `{"id": {...}}` |
+| `data/dialogs.json` | Dialogbäume: `{"id": {"knoten": {...}}}` |
+| `data/rooms/<raum>.json` | Ein Raum pro Datei, Reihenfolge in `game.json` → `rooms` |
+| `tests/walkthrough.json` | Komplettlösung für die Durchspieltests |
+
+## game.json
+
+```json
+{
+  "title": "Sternenschrott",
+  "start_room": "kabine",
+  "start_entry": "start",
+  "player": {"id": "ria", "placeholder": {"body": "#c0392b"}},
+  "companion": {"id": "bolt", "if": "bolt_on"},
+  "rooms": ["kabine", "schacht"],
+  "characters": {"ria": {"name": "Ria", "color": "#ffd27f"}, "text": {"name": "", "color": "#ffffff"}},
+  "medal_label": {"one": "Schraubenmedaille", "many": "Schraubenmedaillen"},
+  "medals": {"wasserhahn": "Tropfenden Wasserhahn repariert"},
+  "texts": {"look": "Nichts Besonderes."},
+  "intro": [["title", "STERNENSCHROTT"]],
+  "art": {"style": "pixel art, ...", "negative": "photo, ...", "actors": {"ria": {"size": [32, 48], "walk_frames": 6, "prompt": "..."}}}
+}
+```
+
+- `player.id`: Sprecher-Id der Spielfigur. Sie spricht Standardantworten und die Sätze aus Dialogoptionen.
+  `player.placeholder` ändert die Farben der Platzhalterfigur (`legs`, `shoes`, `body`, `shirt`, `skin`, `hair`, `accent`, `mouth`).
+- `companion` (optional): Begleiter, der der Spielfigur folgt, solange die Bedingung `if` gilt.
+  Platzhalterfarben unter `companion.placeholder` (`body`, `light`, `eye_bg`, `eye`).
+- `characters`: alle Sprecher mit Anzeigename und Textfarbe. `text` ist der Erzähler.
+- `medals` und `medal_label`: optionale Sammelobjekte (Medaillen, Anstecker …) mit Namen für Anzeige und Meldung.
+- `texts`: ersetzt Standardsätze der Engine. Schlüssel: die Verben (`give`, `open`, `close`, `take`, `talk`,
+  `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`.
+- `intro`: Befehle beim Spielstart.
+- `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`.
+
+## Räume
+
+```json
+{
+  "id": "kabine",
+  "name": "Kabine",
+  "act": 1,
+  "art_prompt": "cramped cabin of a rusty freighter",
+  "bg": {"wall": "#2a3040", "floor": "#1a1e28", "floor_y": 100, "stars": false},
+  "walk": [20, 104, 300, 138],
+  "entries": {"start": [60, 120], "schacht": [280, 120]},
+  "decor": [{"rect": [10, 10, 40, 20], "color": "#444444"}],
+  "on_enter": [],
+  "hotspots": []
+}
+```
+
+Ein Raum ist 320 × 144 Pixel groß. `walk` ist das Rechteck, in dem die Figur laufen darf
+(x1, y1, x2, y2), `entries` sind benannte Startpunkte. `bg` und `decor` gelten nur für den
+Platzhalter. `on_enter` läuft bei jedem Betreten.
+
+### Hotspots
+
+| Feld | Bedeutung |
+| --- | --- |
+| `id`, `name` | Kennung und Anzeigename |
+| `rect` | x, y, Breite, Höhe in Raumkoordinaten |
+| `if` | Nur sichtbar, solange die Bedingung gilt |
+| `verbs` | `{"look": [...], "use:klebeband": [...], "push": "use"}`: Befehle je Verb, ein String verweist auf ein anderes Verb |
+| `default` | Verb für Rechtsklick (sonst `walk` bei Ausgängen, `look` bei allem anderen) |
+| `exit`, `entry` | Ausgang in einen Raum und dessen Eingang |
+| `exit_if`, `exit_blocked`, `exit_do` | Bedingung für den Ausgang, Befehle wenn gesperrt, Befehle vor dem Raumwechsel |
+| `speaker` | Hotspot ist eine Figur; ihr Text erscheint über ihr |
+| `walk_to` | Punkt, zu dem die Figur läuft (sonst unter dem Rechteck) |
+| `color`, `color_variants` | Platzhalterfarbe, je nach Bedingung |
+| `placeholder` | `false`: nichts zeichnen (nur klickbare Fläche) |
+| `sprite`, `art_variants`, `art_prompt` | Eigene Grafik und Zustände, siehe `docs/assets.md` des Spiels |
+
+## Gegenstände
+
+```json
+{"klebeband": {"name": "Klebeband", "short": "Klebe-band", "default": "look", "art_prompt": "roll of duct tape",
+               "verbs": {"look": [["say", "ria", "Hält alles zusammen."]]}}}
+```
+
+`short` ist der Text im Inventar, solange es kein Symbol gibt. „Benutze A mit B“ sucht erst
+`use:A` bei B, dann `use:B` bei A. Dasselbe gilt für „Gib … an“.
+
+## Dialoge
+
+```json
+{"otti": {
+  "start": {"do": [["say", "otti", "Na?"]],
+            "options": [{"text": "Wie geht's?", "if": "!gefragt", "once": true, "do": [["set", "gefragt"]], "next": "start"},
+                        {"text": "Tschüss."}]}
+}}
+```
+
+Ein Dialog beginnt beim Knoten `start`. Die Spielfigur spricht den Text der gewählten Option,
+dann laufen deren Befehle und es geht bei `next` weiter (ohne `next`: Ende). `once` zeigt eine
+Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewählt.
+
+## Befehle
+
+| Befehl | Wirkung |
+| --- | --- |
+| `["say", sprecher, text]` | Sprechtext |
+| `["set", flag]`, `["clear", flag]` | Flag setzen oder löschen |
+| `["give", item]`, `["remove", item]` | Gegenstand ins Inventar oder heraus |
+| `["confiscate", [items]]` | Alles abnehmen außer den genannten Gegenständen |
+| `["if", bedingung, [dann], [sonst]]` | Verzweigung, `sonst` optional |
+| `["case", [[bedingung, [befehle]], ...]]` | Erster passender Zweig |
+| `["goto", raum, eingang]` | Raumwechsel |
+| `["walk", x, y]` | Figur läuft zu einem Punkt |
+| `["medal", id]` | Sammelobjekt vergeben (einmalig) |
+| `["dialog", id]` | Dialog starten |
+| `["title", text]` | Titelbild mit Text |
+| `["wait", sekunden]` | Warten |
+
+## Bedingungen
+
+`"flag"`, `"!flag"`, `"has:item"`, `"medal:id"` oder eine Liste von Bedingungen, die alle gelten müssen.
+
+## Komplettlösung
+
+```json
+{"steps": [["take", "werkzeugkasten"], ["use", "schraubenschluessel", "gitter"], ["choose", 0, 2], ["talk", "otti"]],
+ "expect_flags": ["ende"], "expect_medals": ["wasserhahn"]}
+```
+
+Jeder Schritt ist ein Satz wie aus der Oberfläche. `["choose", i, j, ...]` legt die Auswahl im
+nächsten Dialog fest (Indizes der jeweils sichtbaren Optionen).

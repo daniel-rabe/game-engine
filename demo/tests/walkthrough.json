@@ -1,0 +1,12 @@
+{
+  "description": "Komplettlösung des Demospiels.",
+  "steps": [
+    ["open", "kiste"],
+    ["use", "gluehbirne", "lampe"],
+    ["choose", 0, 0],
+    ["talk", "nachbar"],
+    ["walk", "tuer"]
+  ],
+  "expect_flags": ["lampe_an", "im_hof"],
+  "expect_medals": ["lampe"]
+}
