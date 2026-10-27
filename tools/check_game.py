@@ -8,13 +8,15 @@
 Aufruf (im Spielordner): python3 addons/game_engine/tools/check_game.py [--root=<spielordner>]
 """
 import json
+import re
 import sys
 from pathlib import Path
 
 # Spielordner: --root=<pfad>, sonst das aktuelle Verzeichnis.
 ROOT = Path(next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--root=")), ".")).resolve()
 COMMANDS = {"say", "set", "clear", "give", "remove", "confiscate", "if", "case", "goto", "walk",
-            "medal", "dialog", "title", "wait"}
+            "medal", "dialog", "title", "wait", "add", "count", "duel"}
+COMPARE = re.compile(r"^([A-Za-z0-9_]+)(==|!=|>=|<=|>|<)(-?[0-9]+)$")
 VERBS = {"give", "open", "close", "take", "talk", "use", "push", "pull", "look", "walk"}
 
 def load(rel):
@@ -26,6 +28,8 @@ errors = []
 meta = load("data/game.json")
 items = load("data/items.json")
 dialogs = load("data/dialogs.json")
+duels = load("data/duels.json") if (ROOT / "data/duels.json").exists() else {}
+counter_defs = meta.get("counters", {})
 rooms = {rid: load(f"data/rooms/{rid}.json") for rid in meta["rooms"]}
 speakers = set(meta["characters"])
 if meta.get("player", {}).get("id") not in speakers:
@@ -46,8 +50,11 @@ def check_cond(cond, where):
     s = cond.lstrip("!")
     if s.startswith("has:") and s[4:] not in items:
         errors.append(f"{where}: unbekannter Gegenstand in Bedingung {cond}")
-    if s.startswith("medal:") and s[6:] not in meta["medals"]:
+    if s.startswith("medal:") and s[6:] not in meta.get("medals", {}):
         errors.append(f"{where}: unbekannte Medaille in Bedingung {cond}")
+    m = COMPARE.match(s)
+    if m and m.group(1) not in counter_defs:
+        errors.append(f"{where}: unbekannter Zähler in Bedingung {cond}")
 
 
 def check_actions(actions, where):
@@ -64,7 +71,11 @@ def check_actions(actions, where):
             errors.append(f"{where}: unbekannter Gegenstand in confiscate {a[1]}")
         elif cmd in ("give", "remove") and a[1] not in items:
             errors.append(f"{where}: unbekannter Gegenstand {a[1]}")
-        elif cmd == "medal" and a[1] not in meta["medals"]:
+        elif cmd in ("add", "count") and (a[1] not in counter_defs or len(a) < 3 or not isinstance(a[2], int)):
+            errors.append(f"{where}: {cmd} braucht einen Zähler aus game.json und eine Zahl: {a[1:]}")
+        elif cmd == "duel" and a[1] not in duels:
+            errors.append(f"{where}: unbekanntes Duell {a[1]}")
+        elif cmd == "medal" and a[1] not in meta.get("medals", {}):
             errors.append(f"{where}: unbekannte Medaille {a[1]}")
         elif cmd == "dialog" and a[1] not in dialogs:
             errors.append(f"{where}: unbekannter Dialog {a[1]}")
@@ -96,6 +107,26 @@ def check_verbs(verbs, where):
 
 
 check_actions(meta.get("intro", []), "intro")
+for cid, c in counter_defs.items():
+    check_cond(c.get("hud"), f"Zähler {cid}")
+for did, d in duels.items():
+    where = f"Duell {did}"
+    if d.get("opponent", "text") not in speakers:
+        errors.append(f"{where}: unbekannter Sprecher {d.get('opponent')}")
+    if not d.get("rounds"):
+        errors.append(f"{where}: keine Runden")
+    retorts = d.get("retorts", {})
+    for rid, r in retorts.items():
+        check_cond(r.get("if"), f"{where}.{rid}")
+    for i, rd in enumerate(d.get("rounds", [])):
+        answers = rd.get("answer", [])
+        for ans in [answers] if isinstance(answers, str) else answers:
+            if ans not in retorts:
+                errors.append(f"{where}: Runde {i + 1} verweist auf unbekannte Entgegnung {ans}")
+        check_actions(rd.get("hit", []), f"{where}.runde{i + 1}")
+        check_actions(rd.get("miss", []), f"{where}.runde{i + 1}")
+    for k in ("intro", "hit", "miss", "on_win", "on_lose"):
+        check_actions(d.get(k, []), f"{where}.{k}")
 if meta["start_room"] not in rooms:
     errors.append("Startraum fehlt")
 for iid, item in items.items():
@@ -140,9 +171,10 @@ for rid, room in rooms.items():
 
 class Sim:
     def __init__(self):
-        self.flags, self.inventory, self.medals = {}, [], []
+        self.flags, self.inventory, self.medals, self.counters = {}, [], [], {}
         self.room = meta["start_room"]
         self.choices = []
+        self.problems = []
 
     def check(self, cond):
         if cond is None:
@@ -155,6 +187,10 @@ class Sim:
             r = s[4:] in self.inventory
         elif s.startswith("medal:"):
             r = s[6:] in self.medals
+        elif COMPARE.match(s):
+            name, op, n = COMPARE.match(s).groups()
+            v, n = self.counters.get(name, 0), int(n)
+            r = {"==": v == n, "!=": v != n, ">=": v >= n, "<=": v <= n, ">": v > n, "<": v < n}[op]
         else:
             r = bool(self.flags.get(s, False))
         return r != neg
@@ -210,6 +246,51 @@ class Sim:
                 self.medals.append(a[1])
             elif cmd == "dialog":
                 self.dialog(a[1])
+            elif cmd == "add":
+                self.counters[a[1]] = self.counters.get(a[1], 0) + a[2]
+            elif cmd == "count":
+                self.counters[a[1]] = a[2]
+            elif cmd == "duel":
+                self.duel(a[1])
+
+    def duel(self, did):
+        """Wie run_duel in game.gd."""
+        d = duels[did]
+        meter, step, rounds = d.get("start", 50), d.get("step", 10), d["rounds"]
+        win, lose = d.get("win", 100), d.get("lose", 0)
+        countered, r = set(), 0
+        self.run(d.get("intro", []))
+        while lose < meter < win:
+            if len(countered) >= len(rounds):
+                countered.clear()
+            while r % len(rounds) in countered:
+                r += 1
+            index = r % len(rounds)
+            rd = rounds[index]
+            r += 1
+            options = [rid for rid, x in d.get("retorts", {}).items() if self.check(x.get("if"))]
+            options += [f"filler:{i}" for i in range(len(d.get("fillers", ["Äh ..."])))]
+            wanted = self.choices.pop(0) if self.choices else len(options) - 1
+            if isinstance(wanted, str):
+                if wanted not in options:
+                    self.problems.append(f"Entgegnung {wanted} steht im Duell {did} nicht zur Wahl")
+                    wanted = len(options) - 1
+                else:
+                    wanted = options.index(wanted)
+            answer = options[min(max(wanted, 0), len(options) - 1)]
+            correct = rd.get("answer", [])
+            if answer in ([correct] if isinstance(correct, str) else correct):
+                countered.add(index)
+                meter = min(meter + step, 100)
+                self.run(rd.get("hit", d.get("hit", [])))
+            else:
+                meter = max(meter - step, 0)
+                self.run(rd.get("miss", d.get("miss", [])))
+        if meter >= win:
+            self.flags[f"duel_won:{did}"] = True
+            self.run(d.get("on_win", []))
+        else:
+            self.run(d.get("on_lose", []))
 
     def dialog(self, did):
         dlg, nid = dialogs[did], "start"
@@ -263,7 +344,7 @@ for n, step in enumerate(wt["steps"], 1):
     if step[0] == "choose":
         sim.choices = list(step[1:])
         continue
-    problem = sim.sentence(*step)
+    problem = sim.sentence(*step) or (sim.problems[0] if sim.problems else None)
     if problem:
         errors.append(f"Komplettlösung Schritt {n} {step}: {problem}")
         break
@@ -274,9 +355,13 @@ else:
     for m in wt.get("expect_medals", []):
         if m not in sim.medals:
             errors.append(f"Komplettlösung: Medaille {m} fehlt am Ende")
+    for c, v in wt.get("expect_counters", {}).items():
+        if sim.counters.get(c, 0) != v:
+            errors.append(f"Komplettlösung: Zähler {c} ist {sim.counters.get(c, 0)} statt {v}")
 
 if errors:
     print("\n".join(errors))
     sys.exit(1)
-print(f"OK: {len(rooms)} Räume, {len(items)} Gegenstände, Komplettlösung mit {len(wt['steps'])} Schritten, "
-      f"Medaillen {len(sim.medals)}/{len(meta['medals'])}")
+extra = "".join(f", {c} {v}" for c, v in sim.counters.items())
+print(f"OK: {len(rooms)} Räume, {len(items)} Gegenstände, {len(duels)} Duelle, Komplettlösung mit {len(wt['steps'])} "
+      f"Schritten, Medaillen {len(sim.medals)}/{len(meta.get('medals', {}))}{extra}")

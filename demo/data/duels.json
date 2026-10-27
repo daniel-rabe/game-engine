@@ -1,0 +1,84 @@
+{
+  "hof": {
+    "label": "Nachbarschaft",
+    "opponent": "streiter",
+    "start": 50,
+    "win": 70,
+    "lose": 30,
+    "step": 10,
+    "intro": [
+      [
+        "say",
+        "streiter",
+        "Diese Werkstatt gehört hier nicht her!"
+      ]
+    ],
+    "rounds": [
+      {
+        "claim": "Die ist doch erst seit gestern da!",
+        "answer": "alter",
+        "hit": [
+          [
+            "say",
+            "streiter",
+            "Oh. Seit 1952?"
+          ],
+          [
+            "add",
+            "punkte",
+            1
+          ]
+        ]
+      },
+      {
+        "claim": "Und laut ist sie auch!",
+        "answer": "ruhe",
+        "hit": [
+          [
+            "say",
+            "streiter",
+            "Na gut, nur bis sechs."
+          ],
+          [
+            "add",
+            "punkte",
+            1
+          ]
+        ]
+      }
+    ],
+    "retorts": {
+      "alter": {
+        "text": "Die Werkstatt gibt es seit 1952.",
+        "if": "weiss_alter"
+      },
+      "ruhe": {
+        "text": "Wir arbeiten nur bis sechs Uhr abends."
+      }
+    },
+    "fillers": [
+      "Selber laut!"
+    ],
+    "miss": [
+      [
+        "say",
+        "text",
+        "Das Publikum murmelt."
+      ]
+    ],
+    "on_win": [
+      [
+        "say",
+        "streiter",
+        "Schon gut, schon gut."
+      ]
+    ],
+    "on_lose": [
+      [
+        "say",
+        "heldin",
+        "Ich sollte mich besser vorbereiten."
+      ]
+    ]
+  }
+}

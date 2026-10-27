@@ -10,6 +10,9 @@ Gegenstände, Dialoge und die Skripte an Hotspots. Es gibt keinen Bytecode und
 keinen spielspezifischen Code im Addon. Fehlende Grafiken zeichnet sie als
 Platzhalter, sodass jedes Spiel ohne eine einzige PNG-Datei durchspielbar ist.
 
+Dazu kommen Zähler mit Anzeige (etwa Unterschriften), Argumente-Duelle mit
+Publikumsbarometer und ein Hinweis vor dem Spielstart.
+
 ## Inhalt
 
 | Datei | Aufgabe |

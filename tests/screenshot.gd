@@ -24,7 +24,7 @@ func _run() -> void:
 	for i in min(steps, wt["steps"].size()):
 		var s: Array = wt["steps"][i]
 		if s[0] == "choose":
-			game.scripted_choices = s.slice(1).map(func(c): return int(c))
+			game.scripted_choices = s.slice(1).map(func(c): return c if c is String else int(c))
 			continue
 		await game.do_sentence(s[0], s[1], s[2] if s.size() > 2 else "")
 	game.fast = false
