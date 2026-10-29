@@ -5,6 +5,9 @@ extends Control
 ## Seiten: Hauptliste, Speicherplätze (Speichern oder Laden) und eine
 ## Ja/Nein-Abfrage (Beenden, Überschreiben). Esc geht eine Seite zurück.
 ## Texte kommen aus Game.text("menu_…"), lassen sich also in game.json ersetzen.
+## Hintergrund: game.json "menu": {"panel": Bild, "panel_margin": Rahmenbreite in Bildpunkten};
+## das Bild wird auf die Menübreite verkleinert, nur die Mitte streckt sich (Neun-Felder-Raster).
+## Ohne Bild ein schlichter dunkler Kasten.
 
 signal closed
 
@@ -16,6 +19,7 @@ const OUTLINE := Color("#1a0f08")
 const PANEL_WIDTH := 340.0
 
 var view = null  # main.gd, für Hinweise (_toast)
+var _plate: NinePatchRect
 var _panel: PanelContainer
 var _title: Label
 var _list: VBoxContainer
@@ -34,15 +38,37 @@ func _init() -> void:
 	add_child(shade)
 
 	_panel = PanelContainer.new()
-	var frame := StyleBoxFlat.new()
-	frame.bg_color = Color("#140d08", 0.92)
-	frame.border_color = Color("#8a6a3a")
-	frame.set_border_width_all(2)
-	frame.set_corner_radius_all(6)
-	frame.set_content_margin_all(14)
-	frame.shadow_color = Color(0, 0, 0, 0.5)
-	frame.shadow_size = 8
-	_panel.add_theme_stylebox_override("panel", frame)
+	var cfg: Dictionary = Game.meta.get("menu", {})
+	var tex: Texture2D = load(cfg["panel"]) if ResourceLoader.exists(cfg.get("panel", "")) else null
+	var margin := 14.0
+	if tex:
+		# in voller Auflösung gezeichnet und verkleinert, damit der gemalte Rahmen scharf bleibt
+		var k := PANEL_WIDTH / tex.get_width()
+		var m: int = cfg.get("panel_margin", 0)
+		_plate = NinePatchRect.new()
+		_plate.texture = tex
+		_plate.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		_plate.patch_margin_left = m
+		_plate.patch_margin_right = m
+		_plate.patch_margin_top = m
+		_plate.patch_margin_bottom = m
+		_plate.scale = Vector2(k, k)
+		_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_plate)
+		margin = m * k + 6
+		var empty := StyleBoxEmpty.new()
+		empty.set_content_margin_all(margin)
+		_panel.add_theme_stylebox_override("panel", empty)
+	else:
+		var frame := StyleBoxFlat.new()
+		frame.bg_color = Color("#140d08", 0.92)
+		frame.border_color = Color("#8a6a3a")
+		frame.set_border_width_all(2)
+		frame.set_corner_radius_all(6)
+		frame.set_content_margin_all(margin)
+		frame.shadow_color = Color(0, 0, 0, 0.5)
+		frame.shadow_size = 8
+		_panel.add_theme_stylebox_override("panel", frame)
 	add_child(_panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
@@ -50,7 +76,7 @@ func _init() -> void:
 	_title = Label.new()
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_title.custom_minimum_size = Vector2(PANEL_WIDTH - 28, 0)
+	_title.custom_minimum_size = Vector2(PANEL_WIDTH - 2 * margin, 0)
 	style_title(_title, 28, menu_font())
 	box.add_child(_title)
 	_list = VBoxContainer.new()
@@ -234,3 +260,6 @@ func _end() -> void:
 	_panel.size.x = PANEL_WIDTH
 	_panel.position = ((size - _panel.get_combined_minimum_size()) / 2).floor()
 	_panel.position.x = (size.x - PANEL_WIDTH) / 2
+	if _plate:
+		_plate.position = _panel.position
+		_plate.size = _panel.size / _plate.scale
