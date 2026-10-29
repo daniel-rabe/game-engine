@@ -81,6 +81,11 @@ func _is_hires(tex: Texture2D, size: Vector2) -> bool:
 func _draw_hires() -> void:
 	if _bg and _is_hires(_bg, ROOM_SIZE):
 		_hires.draw_texture_rect(_bg, Rect2(Vector2.ZERO, ROOM_SIZE), false)
+	elif not _bg:
+		# auf dieser Ebene, sonst verdecken Platzhalterraum und -objekte die gemalten Figuren und Objekte
+		_draw_placeholder_room(_hires)
+		for h in Game.visible_hotspots():
+			_draw_hotspot(_hires, h)
 	# Objekte, deren Fußlinie (Unterkante oder "baseline") vor der Figur liegt, verdecken sie
 	var front := []
 	for h in Game.visible_hotspots():
@@ -108,41 +113,39 @@ func _draw_hires() -> void:
 
 
 func _draw() -> void:
+	if _bg and not _is_hires(_bg, ROOM_SIZE):
+		draw_texture(_bg, Vector2.ZERO)
 	if _bg:
-		if not _is_hires(_bg, ROOM_SIZE):
-			draw_texture(_bg, Vector2.ZERO)
-	else:
-		_draw_placeholder_room()
-	for h in Game.visible_hotspots():
-		_draw_hotspot(h)
+		for h in Game.visible_hotspots():
+			_draw_hotspot(self, h)
 	_draw_player()
 	if show_companion:
 		_draw_companion()
 
 
-func _draw_placeholder_room() -> void:
+func _draw_placeholder_room(c: CanvasItem) -> void:
 	var bg: Dictionary = room.get("bg", {})
 	var floor_y: float = bg.get("floor_y", 100)
-	draw_rect(Rect2(0, 0, ROOM_SIZE.x, floor_y), Color(bg.get("wall", "#2a3040")))
-	draw_rect(Rect2(0, floor_y, ROOM_SIZE.x, ROOM_SIZE.y - floor_y), Color(bg.get("floor", "#1a1e28")))
+	c.draw_rect(Rect2(0, 0, ROOM_SIZE.x, floor_y), Color(bg.get("wall", "#2a3040")))
+	c.draw_rect(Rect2(0, floor_y, ROOM_SIZE.x, ROOM_SIZE.y - floor_y), Color(bg.get("floor", "#1a1e28")))
 	if bg.get("stars", false):
-		_draw_stars(Rect2(0, 0, ROOM_SIZE.x, floor_y))
+		_draw_stars(c, Rect2(0, 0, ROOM_SIZE.x, floor_y))
 	for d in room.get("decor", []):
 		var r: Array = d["rect"]
 		var rect := Rect2(r[0], r[1], r[2], r[3])
-		draw_rect(rect, Color(d.get("color", "#444444")))
+		c.draw_rect(rect, Color(d.get("color", "#444444")))
 		if d.get("stars", false):
-			_draw_stars(rect)
+			_draw_stars(c, rect)
 
 
-func _draw_stars(area: Rect2) -> void:
+func _draw_stars(c: CanvasItem, area: Rect2) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4711
 	for i in 90:
 		var p := Vector2(rng.randf_range(0, ROOM_SIZE.x), rng.randf_range(0, ROOM_SIZE.y))
 		if area.has_point(p):
-			var c := Color(1, 1, 1, rng.randf_range(0.3, 1.0))
-			draw_rect(Rect2(p.floor(), Vector2.ONE), c)
+			var col := Color(1, 1, 1, rng.randf_range(0.3, 1.0))
+			c.draw_rect(Rect2(p.floor(), Vector2.ONE), col)
 
 
 func _rect(h: Dictionary) -> Rect2:
@@ -157,40 +160,40 @@ func _object_texture(h: Dictionary) -> Texture2D:
 	return texture("res://art/objects/%s/%s.png" % [room.get("id", ""), file_name])
 
 
-func _draw_hotspot(h: Dictionary) -> void:
+func _draw_hotspot(ci: CanvasItem, h: Dictionary) -> void:
 	var rect := _rect(h)
 	var tex := _object_texture(h)
 	if tex:
 		if not _is_hires(tex, rect.size):
-			draw_texture(tex, rect.position)
+			ci.draw_texture(tex, rect.position)
 		return
 	# Mit gemaltem Hintergrund sind feste Objekte schon im Bild.
 	if (_bg and not h.get("sprite", false)) or not h.get("placeholder", true):
 		return
 	var c := Color(Game.pick_variant(h.get("color_variants", {}), h.get("color", "#6a7a8a")))
 	if h.has("speaker"):
-		_draw_placeholder_person(rect, c, h["id"] == hover_id)
+		_draw_placeholder_person(ci, rect, c, h["id"] == hover_id)
 		return
-	draw_rect(rect, c)
+	ci.draw_rect(rect, c)
 	var edge := c.lightened(0.5) if h["id"] == hover_id else c.darkened(0.45)
-	draw_rect(rect, edge, false, 1.0)
+	ci.draw_rect(rect, edge, false, 1.0)
 
 
 ## Platzhalter für Figuren im Raum: Kopf, Körper und Beine im Hotspot-Rechteck.
-func _draw_placeholder_person(rect: Rect2, c: Color, hovered: bool) -> void:
+func _draw_placeholder_person(ci: CanvasItem, rect: Rect2, c: Color, hovered: bool) -> void:
 	var head := minf(rect.size.x * 0.6, rect.size.y * 0.28)
 	var cx := rect.position.x + rect.size.x / 2
 	var top := rect.position.y
 	var body_h := (rect.size.y - head) * 0.6
-	draw_rect(Rect2(cx - head / 2, top, head, head), Color("#d8b090"))
-	draw_rect(Rect2(cx - head / 2, top, head, 2), c.darkened(0.5))
-	draw_rect(Rect2(rect.position.x + 1, top + head, rect.size.x - 2, body_h), c)
+	ci.draw_rect(Rect2(cx - head / 2, top, head, head), Color("#d8b090"))
+	ci.draw_rect(Rect2(cx - head / 2, top, head, 2), c.darkened(0.5))
+	ci.draw_rect(Rect2(rect.position.x + 1, top + head, rect.size.x - 2, body_h), c)
 	var legs_y := top + head + body_h
 	var leg_w := maxf((rect.size.x - 6) / 2, 2)
-	draw_rect(Rect2(cx - leg_w - 1, legs_y, leg_w, rect.end.y - legs_y), c.darkened(0.4))
-	draw_rect(Rect2(cx + 1, legs_y, leg_w, rect.end.y - legs_y), c.darkened(0.4))
+	ci.draw_rect(Rect2(cx - leg_w - 1, legs_y, leg_w, rect.end.y - legs_y), c.darkened(0.4))
+	ci.draw_rect(Rect2(cx + 1, legs_y, leg_w, rect.end.y - legs_y), c.darkened(0.4))
 	if hovered:
-		draw_rect(rect, c.lightened(0.5), false, 1.0)
+		ci.draw_rect(rect, c.lightened(0.5), false, 1.0)
 
 
 func _draw_player() -> void:
