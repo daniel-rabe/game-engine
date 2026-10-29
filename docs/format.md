@@ -57,7 +57,7 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 }
 ```
 
-Ein Raum ist 320 × 144 Pixel groß. `walk` ist das Rechteck, in dem die Figur laufen darf
+Ein Raum ist 320 × 144 Pixel groß (auch mit 4-fach gemaltem Hintergrund, der wird nur größer gezeichnet). `walk` ist das Rechteck, in dem die Figur laufen darf
 (x1, y1, x2, y2), `entries` sind benannte Startpunkte. `bg` und `decor` gelten nur für den
 Platzhalter. `on_enter` läuft bei jedem Betreten.
 

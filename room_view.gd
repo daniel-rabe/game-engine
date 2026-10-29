@@ -4,6 +4,11 @@ extends Node2D
 ## Grafiken werden per Dateikonvention gesucht (siehe docs/assets.md). Fehlt eine
 ## Datei, zeichnet die View einen Platzhalter, sodass das Spiel ohne jede Grafik
 ## spielbar bleibt und ComfyUI-Ergebnisse einfach in art/ gelegt werden können.
+##
+## Hintergründe und Objektbilder dürfen größer sein als ihr Platz in Raumkoordinaten
+## (z. B. 1280 x 576 für einen 4-fach gemalten Raum). Sie werden in ihr Rechteck
+## gestreckt und auf einer eigenen Ebene mit linearer Filterung gezeichnet, damit
+## gemalte Bilder nicht verpixeln. Bilder in Originalgröße bleiben pixelgenau.
 
 const ROOM_SIZE := Vector2(320, 144)
 const PLAYER_COLORS := {
@@ -24,6 +29,15 @@ var hover_id := ""
 var _time := 0.0
 var _bg: Texture2D = null
 var _textures := {}
+var _hires: Node2D = null  # Ebene unter allem anderen für hochaufgelöste Bilder
+
+
+func _ready() -> void:
+	_hires = Node2D.new()
+	_hires.show_behind_parent = true
+	_hires.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_hires.draw.connect(_draw_hires)
+	add_child(_hires)
 
 
 func set_room(r: Dictionary) -> void:
@@ -42,11 +56,28 @@ func texture(path: String) -> Texture2D:
 func _process(delta: float) -> void:
 	_time += delta
 	queue_redraw()
+	_hires.queue_redraw()
+
+
+## Größer als sein Platz in Raumkoordinaten, also auf der linear gefilterten Ebene.
+func _is_hires(tex: Texture2D, size: Vector2) -> bool:
+	return tex.get_width() > size.x or tex.get_height() > size.y
+
+
+func _draw_hires() -> void:
+	if _bg and _is_hires(_bg, ROOM_SIZE):
+		_hires.draw_texture_rect(_bg, Rect2(Vector2.ZERO, ROOM_SIZE), false)
+	for h in Game.visible_hotspots():
+		var tex := _object_texture(h)
+		var rect := _rect(h)
+		if tex and _is_hires(tex, rect.size):
+			_hires.draw_texture_rect(tex, rect, false)
 
 
 func _draw() -> void:
 	if _bg:
-		draw_texture(_bg, Vector2.ZERO)
+		if not _is_hires(_bg, ROOM_SIZE):
+			draw_texture(_bg, Vector2.ZERO)
 	else:
 		_draw_placeholder_room()
 	for h in Game.visible_hotspots():
@@ -81,15 +112,24 @@ func _draw_stars(area: Rect2) -> void:
 			draw_rect(Rect2(p.floor(), Vector2.ONE), c)
 
 
-func _draw_hotspot(h: Dictionary) -> void:
+func _rect(h: Dictionary) -> Rect2:
 	var r: Array = h["rect"]
-	var rect := Rect2(r[0], r[1], r[2], r[3])
-	# Eigene Objektgrafik (art/objects/<raum>/<hotspot>[_<variante>].png)
+	return Rect2(r[0], r[1], r[2], r[3])
+
+
+## Eigene Objektgrafik (art/objects/<raum>/<hotspot>[_<variante>].png) oder null.
+func _object_texture(h: Dictionary) -> Texture2D:
 	var suffix: String = Game.pick_variant(h.get("art_variants", {}), "")
 	var file_name: String = h["id"] + ("_" + suffix if suffix != "" else "")
-	var tex := texture("res://art/objects/%s/%s.png" % [room.get("id", ""), file_name])
+	return texture("res://art/objects/%s/%s.png" % [room.get("id", ""), file_name])
+
+
+func _draw_hotspot(h: Dictionary) -> void:
+	var rect := _rect(h)
+	var tex := _object_texture(h)
 	if tex:
-		draw_texture(tex, rect.position)
+		if not _is_hires(tex, rect.size):
+			draw_texture(tex, rect.position)
 		return
 	# Mit gemaltem Hintergrund sind feste Objekte schon im Bild.
 	if (_bg and not h.get("sprite", false)) or not h.get("placeholder", true):
