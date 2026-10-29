@@ -5,6 +5,9 @@ extends Control
 ## Seiten: Hauptliste, Speicherplätze (Speichern oder Laden) und eine
 ## Ja/Nein-Abfrage (Beenden, Überschreiben). Esc geht eine Seite zurück.
 ## Texte kommen aus Game.text("menu_…"), lassen sich also in game.json ersetzen.
+## Hintergrund: game.json "menu": {"panel": Bild, "panel_margin": Rahmenbreite in Bildpunkten};
+## das Bild wird auf die Menübreite verkleinert, nur die Mitte streckt sich (Neun-Felder-Raster).
+## Ohne Bild ein schlichter dunkler Kasten.
 
 signal closed
 
@@ -16,6 +19,7 @@ const OUTLINE := Color("#1a0f08")
 const PANEL_WIDTH := 340.0
 
 var view = null  # main.gd, für Hinweise (_toast)
+var _plate: NinePatchRect
 var _panel: PanelContainer
 var _title: Label
 var _list: VBoxContainer
@@ -34,15 +38,37 @@ func _init() -> void:
 	add_child(shade)
 
 	_panel = PanelContainer.new()
-	var frame := StyleBoxFlat.new()
-	frame.bg_color = Color("#140d08", 0.92)
-	frame.border_color = Color("#8a6a3a")
-	frame.set_border_width_all(2)
-	frame.set_corner_radius_all(6)
-	frame.set_content_margin_all(14)
-	frame.shadow_color = Color(0, 0, 0, 0.5)
-	frame.shadow_size = 8
-	_panel.add_theme_stylebox_override("panel", frame)
+	var cfg: Dictionary = Game.meta.get("menu", {})
+	var tex: Texture2D = load(cfg["panel"]) if ResourceLoader.exists(cfg.get("panel", "")) else null
+	var margin := 14.0
+	if tex:
+		# in voller Auflösung gezeichnet und verkleinert, damit der gemalte Rahmen scharf bleibt
+		var k := PANEL_WIDTH / tex.get_width()
+		var m: int = cfg.get("panel_margin", 0)
+		_plate = NinePatchRect.new()
+		_plate.texture = tex
+		_plate.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		_plate.patch_margin_left = m
+		_plate.patch_margin_right = m
+		_plate.patch_margin_top = m
+		_plate.patch_margin_bottom = m
+		_plate.scale = Vector2(k, k)
+		_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_plate)
+		margin = m * k + 6
+		var empty := StyleBoxEmpty.new()
+		empty.set_content_margin_all(margin)
+		_panel.add_theme_stylebox_override("panel", empty)
+	else:
+		var frame := StyleBoxFlat.new()
+		frame.bg_color = Color("#140d08", 0.92)
+		frame.border_color = Color("#8a6a3a")
+		frame.set_border_width_all(2)
+		frame.set_corner_radius_all(6)
+		frame.set_content_margin_all(margin)
+		frame.shadow_color = Color(0, 0, 0, 0.5)
+		frame.shadow_size = 8
+		_panel.add_theme_stylebox_override("panel", frame)
 	add_child(_panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
@@ -50,8 +76,8 @@ func _init() -> void:
 	_title = Label.new()
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_title.custom_minimum_size = Vector2(PANEL_WIDTH - 28, 0)
-	style_title(_title, 28)
+	_title.custom_minimum_size = Vector2(PANEL_WIDTH - 2 * margin, 0)
+	style_title(_title, 28, menu_font())
 	box.add_child(_title)
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 0)
@@ -71,9 +97,20 @@ static func title_font() -> Font:
 	return f
 
 
+## Blockige Schrift fürs Spielmenü wie die Verben: game.json "fonts.menu", sonst die Oberflächenschrift, kräftiger.
+static func menu_font() -> Font:
+	var path: String = Game.meta.get("fonts", {}).get("menu", "")
+	if path != "" and ResourceLoader.exists(path):
+		return load(path)
+	var f := FontVariation.new()
+	f.base_font = ThemeDB.fallback_font
+	f.variation_embolden = 0.6
+	return f
+
+
 ## Goldene Überschrift mit dunkler Kontur und Schatten.
-static func style_title(l: Label, font_size: int) -> void:
-	l.add_theme_font_override("font", title_font())
+static func style_title(l: Label, font_size: int, font: Font = null) -> void:
+	l.add_theme_font_override("font", font if font else title_font())
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", GOLD)
 	l.add_theme_color_override("font_outline_color", OUTLINE)
@@ -84,12 +121,12 @@ static func style_title(l: Label, font_size: int) -> void:
 
 
 ## Menüeintrag als schlichter Textknopf, hell beim Darüberfahren.
-static func make_entry(text: String, font_size := 19) -> Button:
+static func make_entry(text: String, font_size := 19, font: Font = null) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.flat = true
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_override("font", title_font())
+	b.add_theme_font_override("font", font if font else title_font())
 	b.add_theme_font_size_override("font_size", font_size)
 	b.add_theme_color_override("font_color", ENTRY)
 	b.add_theme_color_override("font_hover_color", ENTRY_HOVER)
@@ -192,10 +229,10 @@ func _confirm(question: String, yes: Callable, no := Callable()) -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 40)
 	_list.add_child(row)
-	var y := make_entry(Game.text("menu_yes"), 20)
+	var y := make_entry(Game.text("menu_yes"), 20, menu_font())
 	y.pressed.connect(yes)
 	row.add_child(y)
-	var n := make_entry(Game.text("menu_no"), 20)
+	var n := make_entry(Game.text("menu_no"), 20, menu_font())
 	n.pressed.connect(no if no.is_valid() else _show_main)
 	row.add_child(n)
 	_end()
@@ -209,7 +246,7 @@ func _begin(title: String) -> void:
 
 
 func _add(text: String, action: Callable, disabled := false, font_size := 19) -> Button:
-	var b := make_entry(text, font_size)
+	var b := make_entry(text, font_size, menu_font())
 	b.disabled = disabled
 	b.pressed.connect(action)
 	_list.add_child(b)
@@ -223,3 +260,6 @@ func _end() -> void:
 	_panel.size.x = PANEL_WIDTH
 	_panel.position = ((size - _panel.get_combined_minimum_size()) / 2).floor()
 	_panel.position.x = (size.x - PANEL_WIDTH) / 2
+	if _plate:
+		_plate.position = _panel.position
+		_plate.size = _panel.size / _plate.scale
