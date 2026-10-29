@@ -414,7 +414,7 @@ func say(who: String, text: String) -> void:
 	speech_label.text = text
 	var anchor := Vector2(320, 110)
 	if who == Game.player_id:
-		anchor = Game.player_pos * ROOM_SCALE + Vector2(0, -96)
+		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
 	elif who == Game.companion_id and room_view.show_companion:
 		anchor = companion_pos * ROOM_SCALE + Vector2(0, -24)
 	else:

@@ -38,7 +38,9 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `texts`: ersetzt Standardsätze der Engine. Schlüssel: die Verben (`give`, `open`, `close`, `take`, `talk`,
   `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`.
 - `intro`: Befehle beim Spielstart.
-- `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`.
+- `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`. Je Figur außerdem `walk_fps`
+  (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Sind die Bilder
+  höher als `size`, gelten sie als 4-fach gemalt und werden geviertelt und geglättet gezeichnet.
 
 ## Räume
 

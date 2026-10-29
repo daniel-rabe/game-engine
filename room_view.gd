@@ -9,8 +9,11 @@ extends Node2D
 ## (z. B. 1280 x 576 für einen 4-fach gemalten Raum). Sie werden in ihr Rechteck
 ## gestreckt und auf einer eigenen Ebene mit linearer Filterung gezeichnet, damit
 ## gemalte Bilder nicht verpixeln. Bilder in Originalgröße bleiben pixelgenau.
+## Für Figuren gilt dasselbe: Bilder höher als die Figurengröße aus game.json sind
+## 4-fach gemalt und werden mit einem Viertel ihrer Größe auf dieser Ebene gezeichnet.
 
 const ROOM_SIZE := Vector2(320, 144)
+const HIRES_SCALE := 4.0  # gemalte Hintergründe, Objekte und Figuren sind 4-fach
 const PLAYER_COLORS := {
 	"legs": "#7a1c1c", "shoes": "#2a2a2a", "body": "#c0392b", "shirt": "#e8e0d0",
 	"skin": "#e8c19a", "hair": "#5a2e14", "accent": "#5fb0c0", "mouth": "#5a1010",
@@ -72,6 +75,14 @@ func _draw_hires() -> void:
 		var rect := _rect(h)
 		if tex and _is_hires(tex, rect.size):
 			_hires.draw_texture_rect(tex, rect, false)
+	var pf := _player_frame()
+	if pf and _actor_is_hires(Game.player_id, pf):
+		# weicher Schatten unter den Füßen, damit die gemalte Figur auf dem Boden steht
+		_hires.draw_set_transform(player_pos, 0.0, Vector2(1.0, 0.22))
+		for i in 4:
+			_hires.draw_circle(Vector2.ZERO, 15.0 - i * 3.0, Color(0, 0, 0, 0.12))
+		_hires.draw_set_transform(Vector2.ZERO)
+		_draw_actor_frame(_hires, pf, pf.get_size() / HIRES_SCALE)
 
 
 func _draw() -> void:
@@ -161,18 +172,10 @@ func _draw_placeholder_person(rect: Rect2, c: Color, hovered: bool) -> void:
 
 
 func _draw_player() -> void:
-	var frames := _actor_frames(Game.player_id)
-	if not frames.is_empty():
-		var i := 0
-		if player_walking and frames.size() > 1:
-			i = 1 + int(_time * 8) % (frames.size() - 1)
-		var tex: Texture2D = frames[i]
-		var size := tex.get_size()
-		var rect := Rect2(player_pos - Vector2(size.x / 2, size.y), size)
-		if player_flip:
-			# Negative Breite spiegelt das Bild für den Weg nach links.
-			rect = Rect2(player_pos.x + size.x / 2, player_pos.y - size.y, -size.x, size.y)
-		draw_texture_rect(tex, rect, false)
+	var tex := _player_frame()
+	if tex:
+		if not _actor_is_hires(Game.player_id, tex):
+			_draw_actor_frame(self, tex, tex.get_size())
 		return
 	# Platzhalterfigur; Farben aus game.json "player.placeholder".
 	var pc := _placeholder_colors("player", PLAYER_COLORS)
@@ -210,6 +213,48 @@ func _draw_companion() -> void:
 	draw_circle(p + Vector2(1, -1), 1.2, cc["eye"])
 
 
+## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png).
+func _player_frame() -> Texture2D:
+	var frames := _actor_frames(Game.player_id)
+	if frames.is_empty():
+		return null
+	var cfg := _actor_cfg(Game.player_id)
+	var walk: Array = frames.slice(1)
+	if player_walking and not walk.is_empty():
+		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
+	var idle := _actor_idle(Game.player_id)
+	if not idle.is_empty():
+		return idle[int(_time * cfg.get("idle_fps", 8)) % idle.size()]
+	return frames[0]
+
+
+## Fußpunkt unten mittig; nach links gespiegelt.
+func _draw_actor_frame(canvas: CanvasItem, tex: Texture2D, size: Vector2) -> void:
+	var rect := Rect2(player_pos - Vector2(size.x / 2, size.y), size)
+	if player_flip:
+		# Negative Breite spiegelt das Bild für den Weg nach links.
+		rect = Rect2(player_pos.x + size.x / 2, player_pos.y - size.y, -size.x, size.y)
+	canvas.draw_texture_rect(tex, rect, false)
+
+
+func _actor_cfg(actor: String) -> Dictionary:
+	return Game.meta.get("art", {}).get("actors", {}).get(actor, {})
+
+
+## Höher als die Figurengröße aus game.json: 4-fach gemalt.
+func _actor_is_hires(actor: String, tex: Texture2D) -> bool:
+	var size: Array = _actor_cfg(actor).get("size", [32, 48])
+	return tex.get_height() > size[1]
+
+
+## Höhe der Spielfigur in Raumkoordinaten (für Sprechtexte).
+func player_height() -> float:
+	var tex := _player_frame()
+	if tex == null:
+		return 48.0
+	return tex.get_height() / (HIRES_SCALE if _actor_is_hires(Game.player_id, tex) else 1.0)
+
+
 ## Platzhalterfarben einer Figur: Vorgaben, überschrieben aus game.json.
 func _placeholder_colors(who: String, defaults: Dictionary) -> Dictionary:
 	var key := "colors:" + who
@@ -219,6 +264,20 @@ func _placeholder_colors(who: String, defaults: Dictionary) -> Dictionary:
 		for k in defaults:
 			out[k] = Color(custom.get(k, defaults[k]))
 		_textures[key] = out
+	return _textures[key]
+
+
+## Ruhebilder einer Figur: idle_0.png, idle_1.png, ... (leer, wenn es keine gibt).
+func _actor_idle(actor: String) -> Array:
+	var key := "idle:" + actor
+	if not _textures.has(key):
+		var frames := []
+		while true:
+			var t := texture("res://art/actors/%s/idle_%d.png" % [actor, frames.size()])
+			if t == null:
+				break
+			frames.append(t)
+		_textures[key] = frames
 	return _textures[key]
 
 
