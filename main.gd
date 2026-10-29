@@ -47,6 +47,14 @@ const COMPANION_BEHIND := 22.0
 var _skip := false
 var _inv_hover := ""
 var _talking := ""
+var _talk_text := ""
+var _talk_mood := ""
+var _talk_t := 0.0
+var _talk_duration := 1.0
+## Mundformen beim Sprechen, je Buchstabe; alles andere (Leerzeichen, Satzzeichen) schließt den Mund.
+const MOUTHS := {"a": "open", "ä": "open", "o": "o", "u": "o", "ö": "o", "ü": "o", "e": "e", "i": "e", "y": "e",
+	"m": "closed", "b": "closed", "p": "closed"}
+const MOUTH_RATE := 11.0  # Wechsel pro Sekunde
 
 
 func _ready() -> void:
@@ -385,6 +393,11 @@ func _process(delta: float) -> void:
 	room_view.player_pos = Game.player_pos
 	room_view.player_walking = walk_target != null
 	room_view.player_talking = _talking == Game.player_id
+	var mouth := _mouth()
+	room_view.player_mouth = mouth if _talking == Game.player_id else ""
+	room_view.player_mood = _talk_mood if _talking == Game.player_id else ""
+	room_view.companion_mouth = mouth if _talking == Game.companion_id else ""
+	room_view.companion_mood = _talk_mood if _talking == Game.companion_id else ""
 	room_view.companion_pos = companion_pos
 	room_view.show_companion = Game.companion_id != "" and Game.check(Game.meta["companion"].get("if"))
 
@@ -435,7 +448,22 @@ func play_action(action: String) -> void:
 		await get_tree().create_timer(grab).timeout
 
 
-func say(who: String, text: String) -> void:
+## Mundform zum Zeitpunkt im laufenden Satz: der Text wird über die Sprechdauer abgefahren, in festen
+## Schritten, damit der Mund nicht flackert. Kein echtes Lip-Sync, nur der Takt des Satzes.
+func _mouth() -> String:
+	if _talking.is_empty() or _talk_text.is_empty():
+		return ""
+	var talked := _talk_duration * 0.85  # am Ende schließt sich der Mund, der Text steht noch kurz
+	if _talk_t >= talked:
+		return "closed"
+	var step := floorf(_talk_t * MOUTH_RATE) / MOUTH_RATE
+	var c := _talk_text[int(step / talked * _talk_text.length())].to_lower()
+	if MOUTHS.has(c):
+		return MOUTHS[c]
+	return "small" if c.to_upper() != c else "closed"
+
+
+func say(who: String, text: String, mood := "") -> void:
 	if Game.fast:
 		return
 	var color := Color(Game.characters.get(who, {}).get("color", "#ffffff"))
@@ -457,12 +485,14 @@ func say(who: String, text: String) -> void:
 		clampf(anchor.x - speech_label.size.x / 2, 4, 636 - speech_label.size.x),
 		max(anchor.y - speech_label.size.y, 0))
 	_talking = who
+	_talk_text = text
+	_talk_mood = mood
 	_skip = false
-	var duration := clampf(text.length() * 0.065, 1.5, 8.0)
-	var t := 0.0
-	while t < duration and not _skip:
+	_talk_duration = clampf(text.length() * 0.065, 1.5, 8.0)
+	_talk_t = 0.0
+	while _talk_t < _talk_duration and not _skip:
 		await get_tree().process_frame
-		t += get_process_delta_time()
+		_talk_t += get_process_delta_time()
 	_skip = false
 	_talking = ""
 	speech_label.text = ""

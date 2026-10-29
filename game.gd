@@ -350,7 +350,7 @@ func run(actions: Array) -> void:
 func _exec(a: Array) -> void:
 	match a[0]:
 		"say":
-			await say(a[1], a[2])
+			await say(a[1], a[2], a[3] if a.size() > 3 else "")
 		"set":
 			flags[a[1]] = true
 		"clear":
@@ -400,9 +400,10 @@ func _exec(a: Array) -> void:
 			push_error("Unbekannter Befehl: %s" % str(a))
 
 
-func say(who: String, text: String) -> void:
+## mood: Stimmung für die Sprechbilder ("" = ruhig, z. B. "happy"), siehe room_view._talk_frame
+func say(who: String, text: String, mood := "") -> void:
 	if view:
-		await view.say(who, text)
+		await view.say(who, text, mood)
 	elif not fast:
 		print("%s: %s" % [characters.get(who, {}).get("name", who), text])
 
@@ -444,6 +445,6 @@ func run_dialog(id: String) -> void:
 		var option: Dictionary = all_options[index]
 		if option.get("once", false):
 			flags["dlg:%s:%s:%d" % [id, node_id, index]] = true
-		await say(player_id, option["text"])
+		await say(player_id, option["text"], option.get("mood", ""))
 		await run(option.get("do", []))
 		node_id = option.get("next", "end")

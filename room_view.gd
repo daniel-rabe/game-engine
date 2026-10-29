@@ -25,6 +25,11 @@ var player_pos := Vector2.ZERO
 var player_walking := false
 var player_flip := false
 var player_talking := false
+## Mundform beim Sprechen ("" = spricht nicht) und Stimmung ("" = ruhig, sonst z. B. "happy"), aus main.gd
+var player_mouth := ""
+var player_mood := ""
+var companion_mouth := ""
+var companion_mood := ""
 var companion_pos := Vector2.ZERO
 var show_companion := false
 var companion_flying := false
@@ -241,7 +246,8 @@ func _companion_frame() -> Texture2D:
 		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
 	var idle := _actor_idle(Game.companion_id)
 	if not idle.is_empty():
-		return idle[int(_time * cfg.get("idle_fps", 8)) % idle.size()]
+		var i := int(_time * cfg.get("idle_fps", 8))
+		return _talk_frame(Game.companion_id, companion_mood, companion_mouth, i, idle[i % idle.size()])
 	return frames[0]
 
 
@@ -282,8 +288,28 @@ func _player_frame() -> Texture2D:
 		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
 	var idle := _actor_idle(Game.player_id)
 	if not idle.is_empty():
-		return idle[int(_time * cfg.get("idle_fps", 8)) % idle.size()]
+		var i := int(_time * cfg.get("idle_fps", 8))
+		return _talk_frame(Game.player_id, player_mood, player_mouth, i, idle[i % idle.size()])
 	return frames[0]
+
+
+## Ersatz, wenn eine Figur eine Mundform nicht hat (zuletzt die geschlossene, also das Ruhebild).
+const MOUTH_FALLBACK := {"o": ["small", "open"], "e": ["small", "open"], "small": ["open"], "open": ["small"]}
+
+
+## Sprechbild zum Ruhebild Nummer i: <stimmung>_<mund>_<i>.png mit der Stimmung "talk" (ruhig) oder z. B.
+## "happy"; der Körper bewegt sich also weiter wie im Ruhebild. Ruhig und geschlossen ist das Ruhebild selbst.
+func _talk_frame(actor: String, mood: String, mouth: String, i: int, idle: Texture2D) -> Texture2D:
+	if mouth.is_empty():
+		if mood.is_empty():
+			return idle
+		mouth = "closed"
+	var prefix := "talk" if mood.is_empty() else mood
+	for m in [mouth] + MOUTH_FALLBACK.get(mouth, []) + ["closed"]:
+		var frames := _actor_numbered(actor, "%s_%s" % [prefix, m])
+		if not frames.is_empty():
+			return frames[i % frames.size()]
+	return idle
 
 
 ## Größenfaktor der Figur an Höhe y: Raumfeld "depth" {"y": [hinten, vorn], "scale": [hinten, vorn]},

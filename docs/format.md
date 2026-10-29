@@ -43,6 +43,10 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
   höher als `size`, gelten sie als 4-fach gemalt und werden geviertelt und geglättet gezeichnet.
   `actions` beschreibt Aktionsbilder: `{"pickup": {"fps": 15, "grab": 7}}`. `pickup` spielt die Engine
   automatisch bei „Nimm“, wenn das Verb einen Gegenstand gibt; das Skript läuft ab Bild `grab` weiter.
+  Sprechbilder: `talk_<mund>_N.png` mit den Mundformen `small`, `open`, `o`, `e` (geschlossen = `idle_N.png`),
+  N wie bei den Ruhebildern. Für eine Stimmung `<stimmung>_<mund>_N.png`, z. B. `happy_closed_N.png`,
+  `happy_open_N.png`. Die Engine wechselt die Mundform nach den Buchstaben des Satzes; fehlende Formen
+  werden durch ähnliche ersetzt. Eine Dialogoption kann ihre Stimmung mit `"mood"` angeben.
 
 ## Räume
 
@@ -113,7 +117,7 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 
 | Befehl | Wirkung |
 | --- | --- |
-| `["say", sprecher, text]` | Sprechtext |
+| `["say", sprecher, text]` | Sprechtext; optional mit Stimmung: `["say", "ria", "Juhu!", "happy"]` |
 | `["set", flag]`, `["clear", flag]` | Flag setzen oder löschen |
 | `["give", item]`, `["remove", item]` | Gegenstand ins Inventar oder heraus |
 | `["confiscate", [items]]` | Alles abnehmen außer den genannten Gegenständen |
