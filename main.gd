@@ -6,6 +6,9 @@ extends Node2D
 ## Rechtsklick nimmt das Standardverb des Objekts. F5 speichert, F9 lädt,
 ## Esc bricht einen halben Satz ab, sonst öffnet es das Spielmenü (menu.gd).
 ## Linksklick oder Punkt überspringt Text.
+##
+## Mit game.json "title_screen" beginnt das Spiel mit einem Startbild und Menü
+## (Neues Spiel, Fortsetzen, Beenden), sonst sofort mit dem Intro.
 
 signal arrived
 signal choice_made(index: int)
@@ -22,11 +25,15 @@ const VERB_HINT := Color("#58c058")
 
 var room_view = null  # room_view.gd
 var music = null  # music.gd
+var voice = null  # voice.gd
 var menu = null  # menu.gd
 var sentence_label: Label
 var speech_label: Label
 var title_label: Label
 var title_bg: ColorRect
+var title_pic: TextureRect
+var start_screen: Control
+var _covered := false
 var toast_label: Label
 var medal_label: Label
 var verb_panel: Control
@@ -68,10 +75,15 @@ func _ready() -> void:
 	music = preload("res://addons/game_engine/music.gd").new()
 	music.process_mode = Node.PROCESS_MODE_ALWAYS  # läuft im Menü weiter
 	add_child(music)
+	voice = preload("res://addons/game_engine/voice.gd").new()
+	add_child(voice)
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
 	_refresh_ui()
-	Game.new_game()
+	if Game.meta.has("title_screen") and not Game.fast:
+		_show_start_screen()
+	else:
+		Game.new_game()
 
 
 # --- Aufbau der Oberfläche --------------------------------------------------
@@ -153,6 +165,7 @@ func _build_ui() -> void:
 	title_bg.visible = false
 	title_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(title_bg)
+	title_pic = _make_picture(title_bg, "")
 	title_label = _make_label(title_bg, Vector2(20, 0), Vector2(600, 400), Color("#ffd27f"), 26)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -161,6 +174,117 @@ func _build_ui() -> void:
 	menu = preload("res://addons/game_engine/menu.gd").new()
 	menu.view = self
 	root.add_child(menu)
+
+
+## Bild über den ganzen Bildschirm (640x400), gemalt gern größer; wird geglättet verkleinert.
+func _make_picture(parent: Node, path: String) -> TextureRect:
+	var r := TextureRect.new()
+	r.size = Vector2(640, 400)
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	r.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if path != "":
+		r.texture = room_view.texture(path)
+	parent.add_child(r)
+	return r
+
+
+## Textfeld einer Tafel: "top" (oberes Drittel), "left", "right" (je Hälfte) oder mittig.
+func _place_title(l: Label, where: String) -> void:
+	match where:
+		"top":
+			l.position = Vector2(20, 14)
+			l.size = Vector2(600, 130)
+		"left":
+			l.position = Vector2(20, 0)
+			l.size = Vector2(300, 400)
+		"right":
+			l.position = Vector2(320, 0)
+			l.size = Vector2(300, 400)
+		_:
+			l.position = Vector2(20, 0)
+			l.size = Vector2(600, 400)
+
+
+# --- Startbild --------------------------------------------------------------
+
+## game.json "title_screen": {"image", "music", "text" (Standard: "title"), "subtitle", "text_pos" ("top" …),
+## "menu_pos" (linke obere Ecke des 200x100 großen Menüs, Standard [220, 290])}
+func _show_start_screen() -> void:
+	var cfg: Dictionary = Game.meta["title_screen"]
+	var Menu = preload("res://addons/game_engine/menu.gd")
+	var bg := ColorRect.new()
+	bg.color = Color.BLACK
+	bg.size = Vector2(640, 400)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_bg.get_parent().add_child(bg)
+	start_screen = bg
+	_make_picture(bg, cfg.get("image", ""))
+	var title := _make_label(bg, Vector2.ZERO, Vector2.ZERO, Color.WHITE, 52)
+	title.text = cfg.get("text", Game.meta.get("title", ""))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Menu.style_title(title, 52)
+	_place_title(title, cfg.get("text_pos", "top"))
+	if cfg.has("subtitle"):
+		title.size.y -= 26
+		var sub := _make_label(bg, title.position + Vector2(0, title.size.y - 8), Vector2(title.size.x, 30), Color.WHITE, 17)
+		sub.text = cfg["subtitle"]
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		Menu.style_title(sub, 17)
+		sub.add_theme_color_override("font_color", Color("#f0e0c0"))
+		sub.add_theme_constant_override("outline_size", 5)
+	var list := VBoxContainer.new()
+	var at: Array = cfg.get("menu_pos", [220, 290])
+	list.position = Vector2(at[0], at[1])
+	list.size = Vector2(200, 100)
+	list.alignment = BoxContainer.ALIGNMENT_END
+	list.add_theme_constant_override("separation", 0)
+	bg.add_child(list)
+	for e in [["menu_new", _start_new], ["menu_continue", _start_continue], ["menu_quit", get_tree().quit]]:
+		var b: Button = Menu.make_entry(Game.text(e[0]))
+		b.disabled = e[0] == "menu_continue" and not Game.has_save()
+		b.pressed.connect(e[1])
+		list.add_child(b)
+	music.play(cfg.get("music", ""))
+
+
+func _close_start_screen() -> void:
+	start_screen.queue_free()
+	start_screen = null
+
+
+## Bis zur ersten Tafel bleibt der Bildschirm schwarz, damit der Startraum nicht kurz aufblitzt.
+func _start_new() -> void:
+	_cover()
+	_close_start_screen()
+	await Game.new_game()
+	_uncover()
+
+
+## Schwarzer Bildschirm (title_bg ohne Text), bis eine Tafel, ein Satz oder ein Gang ihn aufhebt.
+func _cover() -> void:
+	title_label.text = ""
+	title_pic.texture = null
+	title_bg.modulate.a = 1.0
+	title_bg.visible = true
+	_covered = true
+
+
+func _uncover() -> void:
+	if not _covered:
+		return
+	_covered = false
+	var tw := create_tween()
+	tw.tween_property(title_bg, "modulate:a", 0.0, 0.6)
+	await tw.finished
+	title_bg.visible = false
+
+
+func _start_continue() -> void:
+	if Game.load_game(Game.latest_slot()):
+		_close_start_screen()
 
 
 func _make_label(parent: Node, pos: Vector2, size: Vector2, color: Color, font_size: int) -> Label:
@@ -228,6 +352,10 @@ func _refresh_verbs() -> void:
 func _input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	var key := event as InputEventKey
+	if start_screen:
+		if key and key.pressed and not key.echo and key.keycode == KEY_M:
+			_toast(Game.text("music_on") if music.toggle_mute() else Game.text("music_off"))
+		return
 	if event is InputEventMouseMotion:
 		_update_hover()
 	elif mb and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
@@ -446,6 +574,7 @@ func room_entered() -> void:
 
 func walk_to(p: Vector2) -> void:
 	p = _clamp_walk(p)
+	_uncover()
 	if Game.fast:
 		Game.player_pos = p
 		return
@@ -488,6 +617,7 @@ func _mouth() -> String:
 func say(who: String, text: String, mood := "") -> void:
 	if Game.fast:
 		return
+	await _uncover()
 	var color := Color(Game.characters.get(who, {}).get("color", "#ffffff"))
 	speech_label.add_theme_color_override("font_color", color)
 	speech_label.text = text
@@ -511,27 +641,53 @@ func say(who: String, text: String, mood := "") -> void:
 	_talk_mood = mood
 	_skip = false
 	_talk_duration = clampf(text.length() * 0.065, 1.5, 8.0)
+	var spoken: float = voice.play(who, text)
+	if spoken > 0.0:  # gesprochen: der Text steht, solange die Stimme spricht
+		_talk_duration = spoken + 0.5
 	_talk_t = 0.0
 	while _talk_t < _talk_duration and not _skip:
 		await get_tree().process_frame
 		if not get_tree().paused:  # Spielmenü offen
 			_talk_t += get_process_delta_time()
+	voice.stop()
 	_skip = false
 	_talking = ""
 	speech_label.text = ""
 
 
-func show_title(text: String) -> void:
+## Texttafel; mit image als gemalte Akttafel (Text an Stelle where, siehe _place_title), weich ein- und ausgeblendet.
+func show_title(text: String, image := "", where := "") -> void:
 	if Game.fast:
 		return
 	title_label.text = text
+	title_pic.texture = room_view.texture(image) if image != "" else null
+	var painted := title_pic.texture != null
+	preload("res://addons/game_engine/menu.gd").style_title(title_label, 40 if painted else 26)
+	_place_title(title_label, where if painted else "")
+	# gemalte Tafeln kommen aus Schwarz: aus dem schwarzen Bildschirm, sonst blendet erst das Schwarz über den Raum ein
+	if painted:
+		var tw := create_tween()
+		if not _covered:
+			title_bg.modulate.a = 0.0
+			tw.tween_property(title_bg, "modulate:a", 1.0, 0.4)
+		title_pic.modulate.a = 0.0
+		title_label.modulate.a = 0.0
+		tw.tween_property(title_pic, "modulate:a", 1.0, 0.6)
+		tw.parallel().tween_property(title_label, "modulate:a", 1.0, 0.6)
+	else:
+		title_bg.modulate.a = 1.0
+	_covered = false
 	title_bg.visible = true
 	_skip = false
 	var t := 0.0
-	while t < 4.0 and not _skip:
+	while t < (5.0 if painted else 4.0) and not _skip:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 	_skip = false
+	if painted:
+		var tw := create_tween()
+		tw.tween_property(title_bg, "modulate:a", 0.0, 0.6)
+		await tw.finished
 	title_bg.visible = false
 
 

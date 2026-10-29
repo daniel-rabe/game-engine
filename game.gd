@@ -56,6 +56,8 @@ const DEFAULT_TEXTS := {
 	"menu_save": "Spielstand speichern",
 	"menu_load": "Spielstand laden",
 	"menu_quit": "Beenden",
+	"menu_new": "Neues Spiel",
+	"menu_continue": "Fortsetzen",
 	"menu_back": "Zurück",
 	"menu_quit_confirm": "Bist du sicher?",
 	"menu_yes": "Ja",
@@ -453,7 +455,7 @@ func _exec(a: Array) -> void:
 			await run_dialog(a[1])
 		"title":
 			if view:
-				await view.show_title(a[1])
+				await view.show_title(a[1], a[2] if a.size() > 2 else "", a[3] if a.size() > 3 else "")
 		"anim":
 			if view and not fast:
 				await view.play_action(a[1])

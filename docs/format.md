@@ -45,7 +45,16 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
   `<dir>/<stück>.ogg` und laufen als Schleife; beim Raumwechsel blendet die Engine in `fade` Sekunden über,
   ein schon laufendes Stück spielt weiter. Fehlt die Datei, blendet die Musik aus. `track_db` gleicht
   einzelne Stücke an. Taste M schaltet stumm (Bus „Music“).
+- `voice` (optional): Sprachausgabe für `say`, z. B. `{"speakers": ["text"], "dir": "res://voice",
+  "volume_db": 0, "duck_db": -8, "duck_fade": 0.4}`. Für jede Zeile eines Sprechers aus `speakers` spielt
+  die Engine `<dir>/<sprecher>/<schlüssel>.ogg` (Schlüssel: die ersten 12 Zeichen des MD5 des Texts), lässt
+  den Text so lange stehen, wie die Aufnahme dauert, und senkt die Musik um `duck_db`. Überspringen stoppt
+  den Ton. Fehlt die Datei (etwa nach einer Textänderung), bleibt die Zeile stumm (Bus „Voice“).
 - `intro`: Befehle beim Spielstart.
+- `title_screen` (optional): Startbild mit Menü (Neues Spiel, Fortsetzen, Beenden) vor dem Intro:
+  `{"image": "res://art/screens/titel.png", "music": "titel", "subtitle": "…", "text_pos": "top", "menu_pos": [220, 290]}`.
+  Das Bild füllt den ganzen Bildschirm (640×400, gern doppelt so groß gemalt), `title` steht als echte Schrift darüber.
+  Nach „Neues Spiel“ bleibt der Bildschirm schwarz bis zur ersten Tafel, zum ersten Satz oder Gang.
 - `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`. Je Figur außerdem `walk_fps`
   (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Sind die Bilder
   höher als `size`, gelten sie als 4-fach gemalt und werden geviertelt und geglättet gezeichnet.
@@ -137,7 +146,7 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 | `["anim", "name"]` | Spielfigur spielt die Aktion `art/actors/<figur>/<name>_N.png` (weiter beim Bild `grab`) |
 | `["medal", id]` | Sammelobjekt vergeben (einmalig) |
 | `["dialog", id]` | Dialog starten |
-| `["title", text]` | Titelbild mit Text |
+| `["title", text, bild, ort]` | Texttafel; mit `bild` gemalte Tafel, die aus Schwarz einblendet, Text an `ort` (`left`, `right`, `top`, sonst mittig) |
 | `["wait", sekunden]` | Warten |
 
 ## Bedingungen
