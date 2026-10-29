@@ -41,6 +41,9 @@ var inv_scroll := 0
 
 var walk_target = null
 var companion_pos := Vector2.ZERO
+## Der Begleiter schwebt so hoch über dem Boden und so weit hinter der Spielfigur (Raumeinheiten, vorn im Raum).
+const COMPANION_HOVER := 36.0
+const COMPANION_BEHIND := 22.0
 var _skip := false
 var _inv_hover := ""
 var _talking := ""
@@ -371,13 +374,25 @@ func _process(delta: float) -> void:
 			arrived.emit()
 		else:
 			Game.player_pos += d.normalized() * stride
-	var companion_home := Game.player_pos + Vector2(-18 if not room_view.player_flip else 18, -34)
+	var companion_home := _companion_home()
+	var before := companion_pos
 	companion_pos = companion_pos.lerp(companion_home, clampf(delta * 2.5, 0.0, 1.0))
+	# fliegt er, schaut er in Flugrichtung, sonst wie die Spielfigur
+	var vx := (companion_pos.x - before.x) / maxf(delta, 0.001)
+	room_view.companion_flying = absf(vx) > 6.0 or (companion_pos - companion_home).length() > 3.0
+	room_view.companion_flip = vx < 0 if absf(vx) > 6.0 else room_view.player_flip
+	room_view.companion_floor_y = companion_pos.y + COMPANION_HOVER * room_view.depth_scale(Game.player_pos.y)
 	room_view.player_pos = Game.player_pos
 	room_view.player_walking = walk_target != null
 	room_view.player_talking = _talking == Game.player_id
 	room_view.companion_pos = companion_pos
 	room_view.show_companion = Game.companion_id != "" and Game.check(Game.meta["companion"].get("if"))
+
+
+## Platz des Begleiters: hinter der Spielfigur in der Luft, mit der Raumtiefe kleiner.
+func _companion_home() -> Vector2:
+	var s: float = room_view.depth_scale(Game.player_pos.y)
+	return Game.player_pos + Vector2(COMPANION_BEHIND if room_view.player_flip else -COMPANION_BEHIND, -COMPANION_HOVER) * s
 
 
 func _clamp_walk(p: Vector2) -> Vector2:
@@ -390,7 +405,7 @@ func _clamp_walk(p: Vector2) -> Vector2:
 func room_entered() -> void:
 	walk_target = null
 	room_view.set_room(Game.room())
-	companion_pos = Game.player_pos + Vector2(-18, -34)
+	companion_pos = _companion_home()
 	_update_hover()
 
 
@@ -430,7 +445,7 @@ func say(who: String, text: String) -> void:
 	if who == Game.player_id:
 		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
 	elif who == Game.companion_id and room_view.show_companion:
-		anchor = companion_pos * ROOM_SCALE + Vector2(0, -24)
+		anchor = (companion_pos - Vector2(0, room_view.companion_height() / 2)) * ROOM_SCALE
 	else:
 		# Figuren im Raum sind Hotspots mit "speaker"; der Text steht über ihnen.
 		for h in Game.visible_hotspots():

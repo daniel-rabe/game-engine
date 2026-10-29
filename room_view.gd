@@ -27,6 +27,9 @@ var player_flip := false
 var player_talking := false
 var companion_pos := Vector2.ZERO
 var show_companion := false
+var companion_flying := false
+var companion_flip := false
+var companion_floor_y := 0.0  # Boden unter dem Begleiter (für den Schatten)
 var hover_id := ""
 
 var _time := 0.0
@@ -83,6 +86,10 @@ func _draw_hires() -> void:
 				front.append([tex, rect])
 			else:
 				_hires.draw_texture_rect(tex, rect, false)
+	# der Begleiter schwebt hinter der Spielfigur, also vor ihr gezeichnet
+	var cf := _companion_frame() if show_companion else null
+	if cf and _actor_is_hires(Game.companion_id, cf):
+		_draw_companion_hires(cf)
 	var pf := _player_frame()
 	if pf and _actor_is_hires(Game.player_id, pf):
 		# weicher Schatten unter den Füßen, damit die gemalte Figur auf dem Boden steht
@@ -210,10 +217,10 @@ func _draw_player() -> void:
 
 func _draw_companion() -> void:
 	var p := companion_pos + Vector2(0, sin(_time * 3.0) * 2.0)
-	var frames := _actor_frames(Game.companion_id)
-	if not frames.is_empty():
-		var tex: Texture2D = frames[int(_time * 6) % frames.size()]
-		draw_texture(tex, p - tex.get_size() / 2)
+	var tex := _companion_frame()
+	if tex:
+		if not _actor_is_hires(Game.companion_id, tex):
+			draw_texture(tex, p - tex.get_size() / 2)
 		return
 	var cc := _placeholder_colors("companion", COMPANION_COLORS)
 	draw_line(p + Vector2(0, -5), p + Vector2(0, -9), cc["body"])
@@ -221,6 +228,42 @@ func _draw_companion() -> void:
 	draw_circle(p, 5.0, cc["body"])
 	draw_circle(p + Vector2(1, -1), 2.0, cc["eye_bg"])
 	draw_circle(p + Vector2(1, -1), 1.2, cc["eye"])
+
+
+## Aktuelles Bild des Begleiters: walk_N im Flug, sonst idle_N (oder stand.png); null ohne Bilder.
+func _companion_frame() -> Texture2D:
+	var frames := _actor_frames(Game.companion_id)
+	if frames.is_empty():
+		return null
+	var cfg := _actor_cfg(Game.companion_id)
+	var walk: Array = frames.slice(1)
+	if companion_flying and not walk.is_empty():
+		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
+	var idle := _actor_idle(Game.companion_id)
+	if not idle.is_empty():
+		return idle[int(_time * cfg.get("idle_fps", 8)) % idle.size()]
+	return frames[0]
+
+
+## 4-fach gemalter Begleiter: Bildmitte auf companion_pos, mit der Tiefe skaliert, Schwebebewegung im Bild
+## selbst; ein blasser Schatten auf dem Boden darunter.
+func _draw_companion_hires(tex: Texture2D) -> void:
+	var s := depth_scale(player_pos.y)
+	_hires.draw_set_transform(Vector2(companion_pos.x, companion_floor_y), 0.0, Vector2(1.0, 0.25) * s)
+	for i in 3:
+		_hires.draw_circle(Vector2.ZERO, 10.0 - i * 2.5, Color(0, 0, 0, 0.1))
+	_hires.draw_set_transform(Vector2.ZERO)
+	var size := tex.get_size() / HIRES_SCALE * s
+	_draw_mirrored(_hires, tex, Rect2(companion_pos - size / 2, size), companion_flip)
+
+
+## Höhe des Begleiters in Raumkoordinaten (für Sprechtexte).
+func companion_height() -> float:
+	var tex := _companion_frame()
+	if tex == null:
+		return 20.0
+	var hires := _actor_is_hires(Game.companion_id, tex)
+	return tex.get_height() / (HIRES_SCALE if hires else 1.0) * (depth_scale(player_pos.y) if hires else 1.0)
 
 
 ## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png).
@@ -258,11 +301,17 @@ func depth_scale(y: float) -> float:
 ## Fußpunkt unten mittig; nach links gespiegelt; mit der Tiefe skaliert.
 func _draw_actor_frame(canvas: CanvasItem, tex: Texture2D, size: Vector2) -> void:
 	size *= depth_scale(player_pos.y)
-	var rect := Rect2(player_pos - Vector2(size.x / 2, size.y), size)
-	if player_flip:
-		# Negative Breite spiegelt das Bild für den Weg nach links.
-		rect = Rect2(player_pos.x + size.x / 2, player_pos.y - size.y, -size.x, size.y)
+	_draw_mirrored(canvas, tex, Rect2(player_pos - Vector2(size.x / 2, size.y), size), player_flip)
+
+
+## Zeichnet tex in rect, mit flip an der senkrechten Mittellinie von rect gespiegelt (für den Weg nach links).
+## Eine negative Rechteckbreite spiegelt in Godot zwar das Bild, verschiebt es aber um eine Breite.
+func _draw_mirrored(canvas: CanvasItem, tex: Texture2D, rect: Rect2, flip: bool) -> void:
+	if flip:
+		canvas.draw_set_transform(Vector2(rect.get_center().x * 2, 0), 0.0, Vector2(-1, 1))
 	canvas.draw_texture_rect(tex, rect, false)
+	if flip:
+		canvas.draw_set_transform(Vector2.ZERO)
 
 
 func _actor_cfg(actor: String) -> Dictionary:
