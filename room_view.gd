@@ -9,8 +9,11 @@ extends Node2D
 ## (z. B. 1280 x 576 für einen 4-fach gemalten Raum). Sie werden in ihr Rechteck
 ## gestreckt und auf einer eigenen Ebene mit linearer Filterung gezeichnet, damit
 ## gemalte Bilder nicht verpixeln. Bilder in Originalgröße bleiben pixelgenau.
+## Für Figuren gilt dasselbe: Bilder höher als die Figurengröße aus game.json sind
+## 4-fach gemalt und werden mit einem Viertel ihrer Größe auf dieser Ebene gezeichnet.
 
 const ROOM_SIZE := Vector2(320, 144)
+const HIRES_SCALE := 4.0  # gemalte Hintergründe, Objekte und Figuren sind 4-fach
 const PLAYER_COLORS := {
 	"legs": "#7a1c1c", "shoes": "#2a2a2a", "body": "#c0392b", "shirt": "#e8e0d0",
 	"skin": "#e8c19a", "hair": "#5a2e14", "accent": "#5fb0c0", "mouth": "#5a1010",
@@ -27,6 +30,9 @@ var show_companion := false
 var hover_id := ""
 
 var _time := 0.0
+var _action: Array = []  # Bilder einer laufenden Aktion (z. B. pickup_N.png)
+var _action_t0 := 0.0
+var _action_fps := 15.0
 var _bg: Texture2D = null
 var _textures := {}
 var _hires: Node2D = null  # Ebene unter allem anderen für hochaufgelöste Bilder
@@ -67,11 +73,26 @@ func _is_hires(tex: Texture2D, size: Vector2) -> bool:
 func _draw_hires() -> void:
 	if _bg and _is_hires(_bg, ROOM_SIZE):
 		_hires.draw_texture_rect(_bg, Rect2(Vector2.ZERO, ROOM_SIZE), false)
+	# Objekte, deren Fußlinie (Unterkante oder "baseline") vor der Figur liegt, verdecken sie
+	var front := []
 	for h in Game.visible_hotspots():
 		var tex := _object_texture(h)
 		var rect := _rect(h)
 		if tex and _is_hires(tex, rect.size):
-			_hires.draw_texture_rect(tex, rect, false)
+			if h.get("baseline", rect.end.y) > player_pos.y:
+				front.append([tex, rect])
+			else:
+				_hires.draw_texture_rect(tex, rect, false)
+	var pf := _player_frame()
+	if pf and _actor_is_hires(Game.player_id, pf):
+		# weicher Schatten unter den Füßen, damit die gemalte Figur auf dem Boden steht
+		_hires.draw_set_transform(player_pos, 0.0, Vector2(1.0, 0.22) * depth_scale(player_pos.y))
+		for i in 4:
+			_hires.draw_circle(Vector2.ZERO, 15.0 - i * 3.0, Color(0, 0, 0, 0.12))
+		_hires.draw_set_transform(Vector2.ZERO)
+		_draw_actor_frame(_hires, pf, pf.get_size() / HIRES_SCALE)
+	for f in front:
+		_hires.draw_texture_rect(f[0], f[1], false)
 
 
 func _draw() -> void:
@@ -161,18 +182,10 @@ func _draw_placeholder_person(rect: Rect2, c: Color, hovered: bool) -> void:
 
 
 func _draw_player() -> void:
-	var frames := _actor_frames(Game.player_id)
-	if not frames.is_empty():
-		var i := 0
-		if player_walking and frames.size() > 1:
-			i = 1 + int(_time * 8) % (frames.size() - 1)
-		var tex: Texture2D = frames[i]
-		var size := tex.get_size()
-		var rect := Rect2(player_pos - Vector2(size.x / 2, size.y), size)
-		if player_flip:
-			# Negative Breite spiegelt das Bild für den Weg nach links.
-			rect = Rect2(player_pos.x + size.x / 2, player_pos.y - size.y, -size.x, size.y)
-		draw_texture_rect(tex, rect, false)
+	var tex := _player_frame()
+	if tex:
+		if not _actor_is_hires(Game.player_id, tex):
+			_draw_actor_frame(self, tex, tex.get_size())
 		return
 	# Platzhalterfigur; Farben aus game.json "player.placeholder".
 	var pc := _placeholder_colors("player", PLAYER_COLORS)
@@ -210,6 +223,67 @@ func _draw_companion() -> void:
 	draw_circle(p + Vector2(1, -1), 1.2, cc["eye"])
 
 
+## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png).
+func _player_frame() -> Texture2D:
+	var frames := _actor_frames(Game.player_id)
+	if frames.is_empty():
+		return null
+	var cfg := _actor_cfg(Game.player_id)
+	if not _action.is_empty():
+		var a := int((_time - _action_t0) * _action_fps)
+		if a < _action.size():
+			return _action[a]
+		_action = []
+	var walk: Array = frames.slice(1)
+	if player_walking and not walk.is_empty():
+		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
+	var idle := _actor_idle(Game.player_id)
+	if not idle.is_empty():
+		return idle[int(_time * cfg.get("idle_fps", 8)) % idle.size()]
+	return frames[0]
+
+
+## Größenfaktor der Figur an Höhe y: Raumfeld "depth" {"y": [hinten, vorn], "scale": [hinten, vorn]},
+## dazwischen linear, außerhalb festgehalten. Ohne "depth" immer 1.
+func depth_scale(y: float) -> float:
+	var d: Dictionary = room.get("depth", {})
+	if d.is_empty():
+		return 1.0
+	var ys: Array = d["y"]
+	var sc: Array = d["scale"]
+	var t := clampf(inverse_lerp(ys[0], ys[1], y), 0.0, 1.0)
+	return lerpf(sc[0], sc[1], t)
+
+
+## Fußpunkt unten mittig; nach links gespiegelt; mit der Tiefe skaliert.
+func _draw_actor_frame(canvas: CanvasItem, tex: Texture2D, size: Vector2) -> void:
+	size *= depth_scale(player_pos.y)
+	var rect := Rect2(player_pos - Vector2(size.x / 2, size.y), size)
+	if player_flip:
+		# Negative Breite spiegelt das Bild für den Weg nach links.
+		rect = Rect2(player_pos.x + size.x / 2, player_pos.y - size.y, -size.x, size.y)
+	canvas.draw_texture_rect(tex, rect, false)
+
+
+func _actor_cfg(actor: String) -> Dictionary:
+	return Game.meta.get("art", {}).get("actors", {}).get(actor, {})
+
+
+## Höher als die Figurengröße aus game.json: 4-fach gemalt.
+func _actor_is_hires(actor: String, tex: Texture2D) -> bool:
+	var size: Array = _actor_cfg(actor).get("size", [32, 48])
+	return tex.get_height() > size[1]
+
+
+## Höhe der Spielfigur in Raumkoordinaten (für Sprechtexte).
+func player_height() -> float:
+	var tex := _player_frame()
+	if tex == null:
+		return 48.0
+	var h := tex.get_height() / (HIRES_SCALE if _actor_is_hires(Game.player_id, tex) else 1.0)
+	return h * depth_scale(player_pos.y)
+
+
 ## Platzhalterfarben einer Figur: Vorgaben, überschrieben aus game.json.
 func _placeholder_colors(who: String, defaults: Dictionary) -> Dictionary:
 	var key := "colors:" + who
@@ -220,6 +294,37 @@ func _placeholder_colors(who: String, defaults: Dictionary) -> Dictionary:
 			out[k] = Color(custom.get(k, defaults[k]))
 		_textures[key] = out
 	return _textures[key]
+
+
+## Spielt die Aktion <name>_0.png, <name>_1.png, ... der Spielfigur einmal ab. Gibt die Sekunden
+## bis zum Bild "grab" aus game.json zurück (art.actors.<id>.actions.<name>), oder -1 ohne Bilder.
+func start_action(action: String) -> float:
+	var frames := _actor_numbered(Game.player_id, action)
+	if frames.is_empty():
+		return -1.0
+	var cfg: Dictionary = _actor_cfg(Game.player_id).get("actions", {}).get(action, {})
+	_action = frames
+	_action_t0 = _time
+	_action_fps = cfg.get("fps", 15)
+	return cfg.get("grab", frames.size()) / _action_fps
+
+
+func _actor_numbered(actor: String, prefix: String) -> Array:
+	var key := prefix + ":" + actor
+	if not _textures.has(key):
+		var frames := []
+		while true:
+			var t := texture("res://art/actors/%s/%s_%d.png" % [actor, prefix, frames.size()])
+			if t == null:
+				break
+			frames.append(t)
+		_textures[key] = frames
+	return _textures[key]
+
+
+## Ruhebilder einer Figur: idle_0.png, idle_1.png, ... (leer, wenn es keine gibt).
+func _actor_idle(actor: String) -> Array:
+	return _actor_numbered(actor, "idle")
 
 
 ## Bilder einer Figur: stand.png, dann walk_0.png, walk_1.png, ...

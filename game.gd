@@ -277,6 +277,9 @@ func _do_sentence(verb: String, obj1: String, obj2: String) -> void:
 	if actions == null:
 		await say(player_id, _default_answer(verb, obj1))
 		return
+	# Beim Nehmen, das einen Gegenstand gibt, greift die Figur zu (Aktion "pickup", falls es Bilder gibt).
+	if verb == "take" and view and not fast and actions.any(func(a): return a[0] == "give"):
+		await view.play_action("pickup")
 	await run(actions)
 
 
@@ -387,6 +390,9 @@ func _exec(a: Array) -> void:
 		"title":
 			if view:
 				await view.show_title(a[1])
+		"anim":
+			if view and not fast:
+				await view.play_action(a[1])
 		"wait":
 			if view and not fast:
 				await get_tree().create_timer(a[1]).timeout

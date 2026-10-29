@@ -38,7 +38,11 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `texts`: ersetzt Standardsätze der Engine. Schlüssel: die Verben (`give`, `open`, `close`, `take`, `talk`,
   `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`.
 - `intro`: Befehle beim Spielstart.
-- `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`.
+- `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`. Je Figur außerdem `walk_fps`
+  (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Sind die Bilder
+  höher als `size`, gelten sie als 4-fach gemalt und werden geviertelt und geglättet gezeichnet.
+  `actions` beschreibt Aktionsbilder: `{"pickup": {"fps": 15, "grab": 7}}`. `pickup` spielt die Engine
+  automatisch bei „Nimm“, wenn das Verb einen Gegenstand gibt; das Skript läuft ab Bild `grab` weiter.
 
 ## Räume
 
@@ -58,7 +62,9 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 ```
 
 Ein Raum ist 320 × 144 Pixel groß (auch mit 4-fach gemaltem Hintergrund, der wird nur größer gezeichnet). `walk` ist das Rechteck, in dem die Figur laufen darf
-(x1, y1, x2, y2), `entries` sind benannte Startpunkte. `bg` und `decor` gelten nur für den
+(x1, y1, x2, y2), `entries` sind benannte Startpunkte. Optional `"depth": {"y": [104, 138], "scale": [0.8, 1.05]}`:
+die Spielfigur ist an y = 104 (hinten) 0,8-mal und an y = 138 (vorn) 1,05-mal so groß, dazwischen linear;
+ihre Laufgeschwindigkeit skaliert mit, damit die Schritte zur Größe passen. `bg` und `decor` gelten nur für den
 Platzhalter. `on_enter` läuft bei jedem Betreten.
 
 ### Hotspots
@@ -67,6 +73,7 @@ Platzhalter. `on_enter` läuft bei jedem Betreten.
 | --- | --- |
 | `id`, `name` | Kennung und Anzeigename |
 | `rect` | x, y, Breite, Höhe in Raumkoordinaten |
+| `baseline` | Fußlinie (y) für die Verdeckung bei gemalten Objektbildern, sonst die Unterkante von `rect`: steht die Figur dahinter (kleineres y), wird das Objekt über ihr gezeichnet |
 | `if` | Nur sichtbar, solange die Bedingung gilt |
 | `verbs` | `{"look": [...], "use:klebeband": [...], "push": "use"}`: Befehle je Verb, ein String verweist auf ein anderes Verb |
 | `default` | Verb für Rechtsklick (sonst `walk` bei Ausgängen, `look` bei allem anderen) |
@@ -114,6 +121,7 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 | `["case", [[bedingung, [befehle]], ...]]` | Erster passender Zweig |
 | `["goto", raum, eingang]` | Raumwechsel |
 | `["walk", x, y]` | Figur läuft zu einem Punkt |
+| `["anim", "name"]` | Spielfigur spielt die Aktion `art/actors/<figur>/<name>_N.png` (weiter beim Bild `grab`) |
 | `["medal", id]` | Sammelobjekt vergeben (einmalig) |
 | `["dialog", id]` | Dialog starten |
 | `["title", text]` | Titelbild mit Text |

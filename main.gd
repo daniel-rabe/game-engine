@@ -360,7 +360,8 @@ func _toast(text: String) -> void:
 
 func _process(delta: float) -> void:
 	if walk_target != null:
-		var stride := WALK_SPEED * delta
+		# weiter hinten kleiner und langsamer, damit die Schritte zur Größe passen
+		var stride: float = WALK_SPEED * delta * room_view.depth_scale(Game.player_pos.y)
 		var d: Vector2 = walk_target - Game.player_pos
 		if abs(d.x) > 0.5:
 			room_view.player_flip = d.x < 0
@@ -404,6 +405,19 @@ func walk_to(p: Vector2) -> void:
 
 func walk_to_hotspot(h: Dictionary) -> void:
 	await walk_to(Game.hotspot_walk_point(h))
+	# zum Objekt drehen
+	var r: Array = h["rect"]
+	var dx: float = r[0] + r[2] / 2.0 - Game.player_pos.x
+	if absf(dx) > 2.0:
+		room_view.player_flip = dx < 0
+
+
+## Spielt eine Aktion der Spielfigur ab und kehrt im Moment des Zugreifens zurück;
+## der Rest der Aktion läuft weiter, während das Skript fortfährt.
+func play_action(action: String) -> void:
+	var grab: float = room_view.start_action(action)
+	if grab > 0.0:
+		await get_tree().create_timer(grab).timeout
 
 
 func say(who: String, text: String) -> void:
@@ -414,7 +428,7 @@ func say(who: String, text: String) -> void:
 	speech_label.text = text
 	var anchor := Vector2(320, 110)
 	if who == Game.player_id:
-		anchor = Game.player_pos * ROOM_SCALE + Vector2(0, -96)
+		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
 	elif who == Game.companion_id and room_view.show_companion:
 		anchor = companion_pos * ROOM_SCALE + Vector2(0, -24)
 	else:
