@@ -4,7 +4,8 @@ extends Node2D
 ##
 ## Bedienung: Verb wählen, Objekt anklicken. Linksklick ohne Verb läuft,
 ## Rechtsklick nimmt das Standardverb des Objekts. F5 speichert, F9 lädt,
-## Esc bricht einen halben Satz ab, Linksklick oder Punkt überspringt Text.
+## Esc bricht einen halben Satz ab, sonst öffnet es das Spielmenü (menu.gd).
+## Linksklick oder Punkt überspringt Text.
 
 signal arrived
 signal choice_made(index: int)
@@ -21,6 +22,7 @@ const VERB_HINT := Color("#58c058")
 
 var room_view = null  # room_view.gd
 var music = null  # music.gd
+var menu = null  # menu.gd
 var sentence_label: Label
 var speech_label: Label
 var title_label: Label
@@ -64,6 +66,7 @@ func _ready() -> void:
 	room_view.scale = Vector2(ROOM_SCALE, ROOM_SCALE)
 	add_child(room_view)
 	music = preload("res://addons/game_engine/music.gd").new()
+	music.process_mode = Node.PROCESS_MODE_ALWAYS  # läuft im Menü weiter
 	add_child(music)
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
@@ -155,6 +158,10 @@ func _build_ui() -> void:
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
+	menu = preload("res://addons/game_engine/menu.gd").new()
+	menu.view = self
+	root.add_child(menu)
+
 
 func _make_label(parent: Node, pos: Vector2, size: Vector2, color: Color, font_size: int) -> Label:
 	var l := Label.new()
@@ -231,7 +238,10 @@ func _input(event: InputEvent) -> void:
 			KEY_PERIOD:
 				_skip = true
 			KEY_ESCAPE:
-				_reset_sentence()
+				if awaiting_second or verb != "walk":
+					_reset_sentence()
+				else:
+					open_menu()
 			KEY_F5:
 				_toast(Game.text("saved") if Game.save_game() else Game.text("save_failed"))
 			KEY_F9:
@@ -363,6 +373,11 @@ func _update_sentence() -> void:
 	if hover != "" and hover != obj1:
 		t += " " + Game.object_name(hover)
 	sentence_label.text = t
+
+
+func open_menu() -> void:
+	_reset_sentence()
+	menu.open()
 
 
 func _toast(text: String) -> void:
@@ -499,7 +514,8 @@ func say(who: String, text: String, mood := "") -> void:
 	_talk_t = 0.0
 	while _talk_t < _talk_duration and not _skip:
 		await get_tree().process_frame
-		_talk_t += get_process_delta_time()
+		if not get_tree().paused:  # Spielmenü offen
+			_talk_t += get_process_delta_time()
 	_skip = false
 	_talking = ""
 	speech_label.text = ""

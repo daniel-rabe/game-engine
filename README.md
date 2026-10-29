@@ -16,9 +16,11 @@ Platzhalter, sodass jedes Spiel ohne eine einzige PNG-Datei durchspielbar ist.
 | --- | --- |
 | `game.gd` | Autoload `Game`: Spielzustand, Daten laden, Skript-Interpreter, Speichern/Laden |
 | `main.gd`, `main.tscn` | MI2-Oberfläche: neun Verben, Satzzeile, Inventar, Sprechtexte, Dialogauswahl |
+| `menu.gd` | Spielmenü (Esc): Weiterspielen, Speichern und Laden auf mehreren Plätzen, Beenden mit Abfrage |
 | `room_view.gd` | Raumdarstellung mit Grafiken nach Dateikonvention oder Platzhaltern |
 | `tests/walkthrough.gd` | Spielt `res://tests/walkthrough.json` des Spiels in der echten Engine durch |
 | `tests/screenshot.gd` | Bildschirmfoto nach n Schritten der Komplettlösung |
+| `tests/menu_test.gd` | Spielmenü (Esc): Speichern, Laden, Beenden-Abfrage; mit `--shots=<ordner>` Bildschirmfotos |
 | `tools/check_game.py` | Prüft die Daten und simuliert die Komplettlösung ohne Godot |
 | `tools/asset_manifest.py` | Erzeugt `art/manifest.json` und Layoutvorlagen für ComfyUI |
 | `demo/` | Kleines Testspiel für die Engine selbst |

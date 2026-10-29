@@ -11,7 +11,8 @@ extends Node
 
 signal state_changed
 
-const SAVE_PATH := "user://spielstand.json"
+## Platz 0 ist der Schnellspeicher (F5/F9), 1 bis SAVE_SLOTS - 1 wählt man im Menü.
+const SAVE_SLOTS := 6
 const ENGINE_DIR := "res://addons/game_engine"
 
 const VERB_NAMES := {
@@ -50,6 +51,18 @@ const DEFAULT_TEXTS := {
 	"load_failed": "Kein Spielstand vorhanden.",
 	"music_on": "Musik an.",
 	"music_off": "Musik aus.",
+	"menu_title": "Pause",
+	"menu_resume": "Weiterspielen",
+	"menu_save": "Spielstand speichern",
+	"menu_load": "Spielstand laden",
+	"menu_quit": "Beenden",
+	"menu_back": "Zurück",
+	"menu_quit_confirm": "Bist du sicher?",
+	"menu_yes": "Ja",
+	"menu_no": "Nein",
+	"menu_overwrite": "Diesen Spielstand überschreiben?",
+	"slot_empty": "– frei –",
+	"slot_quick": "Schnellspeicher",
 }
 
 var meta: Dictionary = {}
@@ -76,6 +89,8 @@ var busy: bool = false
 var fast: bool = false
 ## Vorgegebene Dialogauswahl für Tests (Indizes der sichtbaren Optionen).
 var scripted_choices: Array = []
+## Ordner der Spielstände; Tests nehmen einen eigenen.
+var save_dir: String = "user://"
 
 
 func _ready() -> void:
@@ -120,7 +135,11 @@ func new_game() -> void:
 	state_changed.emit()
 
 
-func save_game() -> bool:
+func save_path(slot: int) -> String:
+	return save_dir.path_join("spielstand.json" if slot == 0 else "spielstand_%d.json" % slot)
+
+
+func save_game(slot := 0) -> bool:
 	if busy or room_id == "":
 		return false
 	var data := {
@@ -129,19 +148,52 @@ func save_game() -> bool:
 		"flags": flags,
 		"inventory": inventory,
 		"medals": medals,
+		"time": int(Time.get_unix_time_from_system()),
 	}
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(save_path(slot), FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(data))
 	return true
 
 
-func load_game() -> bool:
-	if busy or not FileAccess.file_exists(SAVE_PATH):
+## Kurzinfo zu einem Speicherplatz für Menüs: {} wenn leer, sonst
+## {"room", "room_name", "time" (Unix-Sekunden, 0 bei alten Ständen), "medals"}.
+func save_info(slot: int) -> Dictionary:
+	var data = _read_save(slot)
+	if data == null:
+		return {}
+	var id: String = data["room"]
+	return {
+		"room": id,
+		"room_name": rooms[id].get("name", id),
+		"time": int(data.get("time", 0)),
+		"medals": data.get("medals", []).size(),
+	}
+
+
+## Gibt es einen Spielstand auf diesem Platz (-1: auf irgendeinem)?
+func has_save(slot := -1) -> bool:
+	return latest_slot() >= 0 if slot < 0 else _read_save(slot) != null
+
+
+## Der zuletzt gespeicherte Platz oder -1, etwa für „Fortsetzen“.
+func latest_slot() -> int:
+	var best := -1
+	var best_time := -1
+	for slot in SAVE_SLOTS:
+		var info := save_info(slot)
+		if not info.is_empty() and info["time"] > best_time:
+			best = slot
+			best_time = info["time"]
+	return best
+
+
+func load_game(slot := 0) -> bool:
+	if busy:
 		return false
-	var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
-	if typeof(data) != TYPE_DICTIONARY or not rooms.has(data.get("room", "")):
+	var data = _read_save(slot)
+	if data == null:
 		return false
 	flags = data["flags"]
 	inventory = data["inventory"]
@@ -152,6 +204,16 @@ func load_game() -> bool:
 		view.room_entered()
 	state_changed.emit()
 	return true
+
+
+func _read_save(slot: int):
+	var path := save_path(slot)
+	if not FileAccess.file_exists(path):
+		return null
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(data) != TYPE_DICTIONARY or not rooms.has(data.get("room", "")):
+		return null
+	return data
 
 
 # --- Bedingungen ------------------------------------------------------------

@@ -36,7 +36,9 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `characters`: alle Sprecher mit Anzeigename und Textfarbe. `text` ist der Erzähler.
 - `medals` und `medal_label`: optionale Sammelobjekte (Medaillen, Anstecker …) mit Namen für Anzeige und Meldung.
 - `texts`: ersetzt Standardsätze der Engine. Schlüssel: die Verben (`give`, `open`, `close`, `take`, `talk`,
-  `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`, `music_on`, `music_off`.
+  `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`, `music_on`, `music_off`
+  und die Texte des Spielmenüs (Esc): `menu_title`, `menu_resume`, `menu_save`, `menu_load`, `menu_quit`, `menu_back`,
+  `menu_quit_confirm`, `menu_yes`, `menu_no`, `menu_overwrite`, `slot_empty`, `slot_quick`.
 - `music` (optional): Hintergrundmusik, z. B. `{"default": "titel", "acts": {"1": "schiff"}, "volume_db": -8,
   "fade": 2.5, "track_db": {"schiff": -1}, "dir": "res://music"}`. Jeder Raum spielt sein Feld `"music"`,
   sonst das Stück seines Akts (`acts`, Schlüssel ist das Raumfeld `act`), sonst `default`. Stücke sind
