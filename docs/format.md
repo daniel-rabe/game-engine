@@ -36,7 +36,13 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `characters`: alle Sprecher mit Anzeigename und Textfarbe. `text` ist der Erzähler.
 - `medals` und `medal_label`: optionale Sammelobjekte (Medaillen, Anstecker …) mit Namen für Anzeige und Meldung.
 - `texts`: ersetzt Standardsätze der Engine. Schlüssel: die Verben (`give`, `open`, `close`, `take`, `talk`,
-  `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`.
+  `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`, `music_on`, `music_off`.
+- `music` (optional): Hintergrundmusik, z. B. `{"default": "titel", "acts": {"1": "schiff"}, "volume_db": -8,
+  "fade": 2.5, "track_db": {"schiff": -1}, "dir": "res://music"}`. Jeder Raum spielt sein Feld `"music"`,
+  sonst das Stück seines Akts (`acts`, Schlüssel ist das Raumfeld `act`), sonst `default`. Stücke sind
+  `<dir>/<stück>.ogg` und laufen als Schleife; beim Raumwechsel blendet die Engine in `fade` Sekunden über,
+  ein schon laufendes Stück spielt weiter. Fehlt die Datei, blendet die Musik aus. `track_db` gleicht
+  einzelne Stücke an. Taste M schaltet stumm (Bus „Music“).
 - `intro`: Befehle beim Spielstart.
 - `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`. Je Figur außerdem `walk_fps`
   (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Sind die Bilder

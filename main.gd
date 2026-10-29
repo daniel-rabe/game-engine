@@ -20,6 +20,7 @@ const VERB_ACTIVE := Color("#8cff8c")
 const VERB_HINT := Color("#58c058")
 
 var room_view = null  # room_view.gd
+var music = null  # music.gd
 var sentence_label: Label
 var speech_label: Label
 var title_label: Label
@@ -62,6 +63,8 @@ func _ready() -> void:
 	room_view = preload("res://addons/game_engine/room_view.gd").new()
 	room_view.scale = Vector2(ROOM_SCALE, ROOM_SCALE)
 	add_child(room_view)
+	music = preload("res://addons/game_engine/music.gd").new()
+	add_child(music)
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
 	_refresh_ui()
@@ -233,6 +236,8 @@ func _input(event: InputEvent) -> void:
 				_toast(Game.text("saved") if Game.save_game() else Game.text("save_failed"))
 			KEY_F9:
 				_toast(Game.text("loaded") if Game.load_game() else Game.text("load_failed"))
+			KEY_M:
+				_toast(Game.text("music_on") if music.toggle_mute() else Game.text("music_off"))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -419,6 +424,7 @@ func _clamp_walk(p: Vector2) -> Vector2:
 func room_entered() -> void:
 	walk_target = null
 	room_view.set_room(Game.room())
+	music.room_entered(Game.room())
 	companion_pos = _companion_home()
 	_update_hover()
 

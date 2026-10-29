@@ -48,6 +48,8 @@ const DEFAULT_TEXTS := {
 	"save_failed": "Speichern geht gerade nicht.",
 	"loaded": "Spielstand geladen.",
 	"load_failed": "Kein Spielstand vorhanden.",
+	"music_on": "Musik an.",
+	"music_off": "Musik aus.",
 }
 
 var meta: Dictionary = {}
