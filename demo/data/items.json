@@ -1,0 +1,4 @@
+{
+  "gluehbirne": {"name": "Glühbirne", "verbs": {"look": [["say", "heldin", "Eine neue Glühbirne."]]}},
+  "schluessel": {"name": "Schlüssel", "verbs": {"look": [["say", "heldin", "Der Hofschlüssel."]]}}
+}

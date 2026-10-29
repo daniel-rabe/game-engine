@@ -1,0 +1,27 @@
+; Kleines Testspiel für die Engine selbst (siehe tests/run_demo.sh)
+
+config_version=5
+
+[application]
+
+config/name="Engine-Demo"
+run/main_scene="res://addons/game_engine/main.tscn"
+config/features=PackedStringArray("4.4")
+
+[autoload]
+
+Game="*res://addons/game_engine/game.gd"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=400
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+window/stretch/scale_mode="integer"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0

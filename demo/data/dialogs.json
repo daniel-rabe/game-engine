@@ -1,0 +1,11 @@
+{
+  "nachbar": {
+    "start": {
+      "do": [["say", "nachbar", "Na?"]],
+      "options": [
+        {"text": "Hast du den Hofschlüssel?", "if": "!has:schluessel", "do": [["say", "nachbar", "Hier, bitte."], ["give", "schluessel"]], "next": "start"},
+        {"text": "Tschüss.", "do": [["say", "nachbar", "Bis dann."]]}
+      ]
+    }
+  }
+}
