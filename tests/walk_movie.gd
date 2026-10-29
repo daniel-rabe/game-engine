@@ -1,7 +1,7 @@
 extends SceneTree
-## Spielfigur steht, läuft nach rechts und zurück; für Aufnahmen mit --write-movie.
+## Spielfigur steht und läuft dann eine Punktfolge ab; für Aufnahmen mit --write-movie.
 ##
-##   godot --path . --write-movie user://walk/f.png --fixed-fps 30 -s res://addons/game_engine/tests/walk_movie.gd -- --from=60 --to=250
+##   godot --path . --write-movie user://walk/f.png --fixed-fps 30 -s res://addons/game_engine/tests/walk_movie.gd -- --path=70:124,250:136,200:106
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -19,11 +19,14 @@ func _run() -> void:
 	for i in 10:
 		await process_frame
 	game.fast = false
-	var y := float(args.get("y", "124"))
-	game.player_pos = Vector2(float(args.get("from", "60")), y)
+	var points := []
+	for p: String in String(args.get("path", "60:124,250:124,60:124")).split(","):
+		var xy: PackedStringArray = p.split(":")
+		points.append(Vector2(float(xy[0]), float(xy[1])))
+	game.player_pos = points[0]
 	await create_timer(2.0).timeout
-	await main.walk_to(Vector2(float(args.get("to", "250")), y))
-	await create_timer(1.5).timeout
-	await main.walk_to(Vector2(float(args.get("from", "60")), y))
-	await create_timer(1.5).timeout
+	for p in points.slice(1):
+		await main.walk_to(p)
+		await create_timer(0.6).timeout
+	await create_timer(1.0).timeout
 	quit(0)

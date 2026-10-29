@@ -70,19 +70,26 @@ func _is_hires(tex: Texture2D, size: Vector2) -> bool:
 func _draw_hires() -> void:
 	if _bg and _is_hires(_bg, ROOM_SIZE):
 		_hires.draw_texture_rect(_bg, Rect2(Vector2.ZERO, ROOM_SIZE), false)
+	# Objekte, deren Fußlinie (Unterkante oder "baseline") vor der Figur liegt, verdecken sie
+	var front := []
 	for h in Game.visible_hotspots():
 		var tex := _object_texture(h)
 		var rect := _rect(h)
 		if tex and _is_hires(tex, rect.size):
-			_hires.draw_texture_rect(tex, rect, false)
+			if h.get("baseline", rect.end.y) > player_pos.y:
+				front.append([tex, rect])
+			else:
+				_hires.draw_texture_rect(tex, rect, false)
 	var pf := _player_frame()
 	if pf and _actor_is_hires(Game.player_id, pf):
 		# weicher Schatten unter den Füßen, damit die gemalte Figur auf dem Boden steht
-		_hires.draw_set_transform(player_pos, 0.0, Vector2(1.0, 0.22))
+		_hires.draw_set_transform(player_pos, 0.0, Vector2(1.0, 0.22) * depth_scale(player_pos.y))
 		for i in 4:
 			_hires.draw_circle(Vector2.ZERO, 15.0 - i * 3.0, Color(0, 0, 0, 0.12))
 		_hires.draw_set_transform(Vector2.ZERO)
 		_draw_actor_frame(_hires, pf, pf.get_size() / HIRES_SCALE)
+	for f in front:
+		_hires.draw_texture_rect(f[0], f[1], false)
 
 
 func _draw() -> void:
@@ -228,8 +235,21 @@ func _player_frame() -> Texture2D:
 	return frames[0]
 
 
-## Fußpunkt unten mittig; nach links gespiegelt.
+## Größenfaktor der Figur an Höhe y: Raumfeld "depth" {"y": [hinten, vorn], "scale": [hinten, vorn]},
+## dazwischen linear, außerhalb festgehalten. Ohne "depth" immer 1.
+func depth_scale(y: float) -> float:
+	var d: Dictionary = room.get("depth", {})
+	if d.is_empty():
+		return 1.0
+	var ys: Array = d["y"]
+	var sc: Array = d["scale"]
+	var t := clampf(inverse_lerp(ys[0], ys[1], y), 0.0, 1.0)
+	return lerpf(sc[0], sc[1], t)
+
+
+## Fußpunkt unten mittig; nach links gespiegelt; mit der Tiefe skaliert.
 func _draw_actor_frame(canvas: CanvasItem, tex: Texture2D, size: Vector2) -> void:
+	size *= depth_scale(player_pos.y)
 	var rect := Rect2(player_pos - Vector2(size.x / 2, size.y), size)
 	if player_flip:
 		# Negative Breite spiegelt das Bild für den Weg nach links.
@@ -252,7 +272,8 @@ func player_height() -> float:
 	var tex := _player_frame()
 	if tex == null:
 		return 48.0
-	return tex.get_height() / (HIRES_SCALE if _actor_is_hires(Game.player_id, tex) else 1.0)
+	var h := tex.get_height() / (HIRES_SCALE if _actor_is_hires(Game.player_id, tex) else 1.0)
+	return h * depth_scale(player_pos.y)
 
 
 ## Platzhalterfarben einer Figur: Vorgaben, überschrieben aus game.json.
