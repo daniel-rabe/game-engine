@@ -1,7 +1,7 @@
 extends SceneTree
 ## Spielfigur steht und läuft dann eine Punktfolge ab; für Aufnahmen mit --write-movie.
 ##
-##   godot --path . --write-movie user://walk/f.png --fixed-fps 30 -s res://addons/game_engine/tests/walk_movie.gd -- --path=70:124,250:136,200:106
+##   godot --path . --write-movie user://walk/f.png --fixed-fps 30 -s res://addons/game_engine/tests/walk_movie.gd -- --path=70:124,250:136,200:106 --do=take:werkzeugkasten
 
 func _initialize() -> void:
 	_run.call_deferred()
@@ -28,5 +28,9 @@ func _run() -> void:
 	for p in points.slice(1):
 		await main.walk_to(p)
 		await create_timer(0.6).timeout
+	# optional ein Satz am Ende, z. B. --do=take:werkzeugkasten
+	if args.has("do"):
+		var vo: PackedStringArray = String(args["do"]).split(":")
+		await game.do_sentence(vo[0], vo[1])
 	await create_timer(1.0).timeout
 	quit(0)

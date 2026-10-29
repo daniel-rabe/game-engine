@@ -405,6 +405,19 @@ func walk_to(p: Vector2) -> void:
 
 func walk_to_hotspot(h: Dictionary) -> void:
 	await walk_to(Game.hotspot_walk_point(h))
+	# zum Objekt drehen
+	var r: Array = h["rect"]
+	var dx: float = r[0] + r[2] / 2.0 - Game.player_pos.x
+	if absf(dx) > 2.0:
+		room_view.player_flip = dx < 0
+
+
+## Spielt eine Aktion der Spielfigur ab und kehrt im Moment des Zugreifens zurück;
+## der Rest der Aktion läuft weiter, während das Skript fortfährt.
+func play_action(action: String) -> void:
+	var grab: float = room_view.start_action(action)
+	if grab > 0.0:
+		await get_tree().create_timer(grab).timeout
 
 
 func say(who: String, text: String) -> void:

@@ -41,6 +41,8 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`. Je Figur außerdem `walk_fps`
   (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Sind die Bilder
   höher als `size`, gelten sie als 4-fach gemalt und werden geviertelt und geglättet gezeichnet.
+  `actions` beschreibt Aktionsbilder: `{"pickup": {"fps": 15, "grab": 7}}`. `pickup` spielt die Engine
+  automatisch bei „Nimm“, wenn das Verb einen Gegenstand gibt; das Skript läuft ab Bild `grab` weiter.
 
 ## Räume
 
@@ -119,6 +121,7 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 | `["case", [[bedingung, [befehle]], ...]]` | Erster passender Zweig |
 | `["goto", raum, eingang]` | Raumwechsel |
 | `["walk", x, y]` | Figur läuft zu einem Punkt |
+| `["anim", "name"]` | Spielfigur spielt die Aktion `art/actors/<figur>/<name>_N.png` (weiter beim Bild `grab`) |
 | `["medal", id]` | Sammelobjekt vergeben (einmalig) |
 | `["dialog", id]` | Dialog starten |
 | `["title", text]` | Titelbild mit Text |

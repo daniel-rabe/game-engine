@@ -30,6 +30,9 @@ var show_companion := false
 var hover_id := ""
 
 var _time := 0.0
+var _action: Array = []  # Bilder einer laufenden Aktion (z. B. pickup_N.png)
+var _action_t0 := 0.0
+var _action_fps := 15.0
 var _bg: Texture2D = null
 var _textures := {}
 var _hires: Node2D = null  # Ebene unter allem anderen für hochaufgelöste Bilder
@@ -226,6 +229,11 @@ func _player_frame() -> Texture2D:
 	if frames.is_empty():
 		return null
 	var cfg := _actor_cfg(Game.player_id)
+	if not _action.is_empty():
+		var a := int((_time - _action_t0) * _action_fps)
+		if a < _action.size():
+			return _action[a]
+		_action = []
 	var walk: Array = frames.slice(1)
 	if player_walking and not walk.is_empty():
 		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
@@ -288,18 +296,35 @@ func _placeholder_colors(who: String, defaults: Dictionary) -> Dictionary:
 	return _textures[key]
 
 
-## Ruhebilder einer Figur: idle_0.png, idle_1.png, ... (leer, wenn es keine gibt).
-func _actor_idle(actor: String) -> Array:
-	var key := "idle:" + actor
+## Spielt die Aktion <name>_0.png, <name>_1.png, ... der Spielfigur einmal ab. Gibt die Sekunden
+## bis zum Bild "grab" aus game.json zurück (art.actors.<id>.actions.<name>), oder -1 ohne Bilder.
+func start_action(action: String) -> float:
+	var frames := _actor_numbered(Game.player_id, action)
+	if frames.is_empty():
+		return -1.0
+	var cfg: Dictionary = _actor_cfg(Game.player_id).get("actions", {}).get(action, {})
+	_action = frames
+	_action_t0 = _time
+	_action_fps = cfg.get("fps", 15)
+	return cfg.get("grab", frames.size()) / _action_fps
+
+
+func _actor_numbered(actor: String, prefix: String) -> Array:
+	var key := prefix + ":" + actor
 	if not _textures.has(key):
 		var frames := []
 		while true:
-			var t := texture("res://art/actors/%s/idle_%d.png" % [actor, frames.size()])
+			var t := texture("res://art/actors/%s/%s_%d.png" % [actor, prefix, frames.size()])
 			if t == null:
 				break
 			frames.append(t)
 		_textures[key] = frames
 	return _textures[key]
+
+
+## Ruhebilder einer Figur: idle_0.png, idle_1.png, ... (leer, wenn es keine gibt).
+func _actor_idle(actor: String) -> Array:
+	return _actor_numbered(actor, "idle")
 
 
 ## Bilder einer Figur: stand.png, dann walk_0.png, walk_1.png, ...
