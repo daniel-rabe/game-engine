@@ -51,7 +51,7 @@ func _init() -> void:
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title.custom_minimum_size = Vector2(PANEL_WIDTH - 28, 0)
-	style_title(_title, 28)
+	style_title(_title, 28, menu_font())
 	box.add_child(_title)
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 0)
@@ -71,9 +71,20 @@ static func title_font() -> Font:
 	return f
 
 
+## Blockige Schrift fürs Spielmenü wie die Verben: game.json "fonts.menu", sonst die Oberflächenschrift, kräftiger.
+static func menu_font() -> Font:
+	var path: String = Game.meta.get("fonts", {}).get("menu", "")
+	if path != "" and ResourceLoader.exists(path):
+		return load(path)
+	var f := FontVariation.new()
+	f.base_font = ThemeDB.fallback_font
+	f.variation_embolden = 0.6
+	return f
+
+
 ## Goldene Überschrift mit dunkler Kontur und Schatten.
-static func style_title(l: Label, font_size: int) -> void:
-	l.add_theme_font_override("font", title_font())
+static func style_title(l: Label, font_size: int, font: Font = null) -> void:
+	l.add_theme_font_override("font", font if font else title_font())
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", GOLD)
 	l.add_theme_color_override("font_outline_color", OUTLINE)
@@ -84,12 +95,12 @@ static func style_title(l: Label, font_size: int) -> void:
 
 
 ## Menüeintrag als schlichter Textknopf, hell beim Darüberfahren.
-static func make_entry(text: String, font_size := 19) -> Button:
+static func make_entry(text: String, font_size := 19, font: Font = null) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.flat = true
 	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_override("font", title_font())
+	b.add_theme_font_override("font", font if font else title_font())
 	b.add_theme_font_size_override("font_size", font_size)
 	b.add_theme_color_override("font_color", ENTRY)
 	b.add_theme_color_override("font_hover_color", ENTRY_HOVER)
@@ -192,10 +203,10 @@ func _confirm(question: String, yes: Callable, no := Callable()) -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 40)
 	_list.add_child(row)
-	var y := make_entry(Game.text("menu_yes"), 20)
+	var y := make_entry(Game.text("menu_yes"), 20, menu_font())
 	y.pressed.connect(yes)
 	row.add_child(y)
-	var n := make_entry(Game.text("menu_no"), 20)
+	var n := make_entry(Game.text("menu_no"), 20, menu_font())
 	n.pressed.connect(no if no.is_valid() else _show_main)
 	row.add_child(n)
 	_end()
@@ -209,7 +220,7 @@ func _begin(title: String) -> void:
 
 
 func _add(text: String, action: Callable, disabled := false, font_size := 19) -> Button:
-	var b := make_entry(text, font_size)
+	var b := make_entry(text, font_size, menu_font())
 	b.disabled = disabled
 	b.pressed.connect(action)
 	_list.add_child(b)
