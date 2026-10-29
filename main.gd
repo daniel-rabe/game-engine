@@ -25,6 +25,7 @@ const VERB_HINT := Color("#58c058")
 
 var room_view = null  # room_view.gd
 var music = null  # music.gd
+var voice = null  # voice.gd
 var menu = null  # menu.gd
 var sentence_label: Label
 var speech_label: Label
@@ -74,6 +75,8 @@ func _ready() -> void:
 	music = preload("res://addons/game_engine/music.gd").new()
 	music.process_mode = Node.PROCESS_MODE_ALWAYS  # läuft im Menü weiter
 	add_child(music)
+	voice = preload("res://addons/game_engine/voice.gd").new()
+	add_child(voice)
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
 	_refresh_ui()
@@ -638,11 +641,15 @@ func say(who: String, text: String, mood := "") -> void:
 	_talk_mood = mood
 	_skip = false
 	_talk_duration = clampf(text.length() * 0.065, 1.5, 8.0)
+	var spoken: float = voice.play(who, text)
+	if spoken > 0.0:  # gesprochen: der Text steht, solange die Stimme spricht
+		_talk_duration = spoken + 0.5
 	_talk_t = 0.0
 	while _talk_t < _talk_duration and not _skip:
 		await get_tree().process_frame
 		if not get_tree().paused:  # Spielmenü offen
 			_talk_t += get_process_delta_time()
+	voice.stop()
 	_skip = false
 	_talking = ""
 	speech_label.text = ""
