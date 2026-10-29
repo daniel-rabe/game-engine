@@ -14,6 +14,7 @@ extends Node2D
 
 const ROOM_SIZE := Vector2(320, 144)
 const HIRES_SCALE := 4.0  # gemalte Hintergründe, Objekte und Figuren sind 4-fach
+const TALK_FPS := 8.0  # Sprechbilder von Raumfiguren (<objekt>_talk_N.png)
 const PLAYER_COLORS := {
 	"legs": "#7a1c1c", "shoes": "#2a2a2a", "body": "#c0392b", "shirt": "#e8e0d0",
 	"skin": "#e8c19a", "hair": "#5a2e14", "accent": "#5fb0c0", "mouth": "#5a1010",
@@ -36,6 +37,8 @@ var companion_flying := false
 var companion_flip := false
 var companion_floor_y := 0.0  # Boden unter dem Begleiter (für den Schatten)
 var hover_id := ""
+## wer gerade spricht (Figuren-ID), aus main.gd; Raumfiguren mit "speaker" zeigen dann ihre Sprechbilder
+var talking_id := ""
 
 var _time := 0.0
 var _action: Array = []  # Bilder einer laufenden Aktion (z. B. pickup_N.png)
@@ -153,11 +156,36 @@ func _rect(h: Dictionary) -> Rect2:
 	return Rect2(r[0], r[1], r[2], r[3])
 
 
-## Eigene Objektgrafik (art/objects/<raum>/<hotspot>[_<variante>].png) oder null.
+## Eigene Objektgrafik (art/objects/<raum>/<hotspot>[_<variante>].png) oder null. Gibt es stattdessen <name>_0.png,
+## <name>_1.png, ..., ist das Objekt animiert: Schleife mit "anim_fps" Bildern/s (Standard 4), Reihenfolge optional als
+## "anim_order" (z. B. [0, 0, 0, 1] für ein Blinzeln mit Pause). Spricht die Figur ("speaker"), laufen <name>_talk_0.png, ...
 func _object_texture(h: Dictionary) -> Texture2D:
 	var suffix: String = Game.pick_variant(h.get("art_variants", {}), "")
 	var file_name: String = h["id"] + ("_" + suffix if suffix != "" else "")
-	return texture("res://art/objects/%s/%s.png" % [room.get("id", ""), file_name])
+	var base := "res://art/objects/%s/%s" % [room.get("id", ""), file_name]
+	if h.has("speaker") and h["speaker"] == talking_id:
+		var talk := _numbered(base + "_talk")
+		if not talk.is_empty():
+			return talk[int(_time * TALK_FPS) % talk.size()]
+	var frames := _numbered(base)
+	if frames.is_empty():
+		return texture(base + ".png")
+	var order: Array = h.get("anim_order", range(frames.size()))
+	var i: int = order[int(_time * h.get("anim_fps", 4.0)) % order.size()]
+	return frames[i % frames.size()]
+
+
+## Nummerierte Bilder <prefix>_0.png, <prefix>_1.png, ... (leer, wenn es keine gibt).
+func _numbered(prefix: String) -> Array:
+	if not _textures.has(prefix):
+		var frames := []
+		while true:
+			var t := texture("%s_%d.png" % [prefix, frames.size()])
+			if t == null:
+				break
+			frames.append(t)
+		_textures[prefix] = frames
+	return _textures[prefix]
 
 
 func _draw_hotspot(ci: CanvasItem, h: Dictionary) -> void:
@@ -388,16 +416,7 @@ func start_action(action: String) -> float:
 
 
 func _actor_numbered(actor: String, prefix: String) -> Array:
-	var key := prefix + ":" + actor
-	if not _textures.has(key):
-		var frames := []
-		while true:
-			var t := texture("res://art/actors/%s/%s_%d.png" % [actor, prefix, frames.size()])
-			if t == null:
-				break
-			frames.append(t)
-		_textures[key] = frames
-	return _textures[key]
+	return _numbered("res://art/actors/%s/%s" % [actor, prefix])
 
 
 ## Ruhebilder einer Figur: idle_0.png, idle_1.png, ... (leer, wenn es keine gibt).

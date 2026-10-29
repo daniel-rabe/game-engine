@@ -393,6 +393,7 @@ func _process(delta: float) -> void:
 	room_view.player_pos = Game.player_pos
 	room_view.player_walking = walk_target != null
 	room_view.player_talking = _talking == Game.player_id
+	room_view.talking_id = _talking
 	var mouth := _mouth()
 	room_view.player_mouth = mouth if _talking == Game.player_id else ""
 	room_view.player_mood = _talk_mood if _talking == Game.player_id else ""
