@@ -395,6 +395,9 @@ func _exec(a: Array) -> void:
 		"anim":
 			if view and not fast:
 				await view.play_action(a[1])
+		"music":
+			if view:
+				view.music.play(a[1] if a.size() > 1 else view.music.track_for(room()))
 		"wait":
 			if view and not fast:
 				await get_tree().create_timer(a[1]).timeout

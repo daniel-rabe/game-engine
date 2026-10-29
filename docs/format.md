@@ -131,6 +131,7 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 | `["case", [[bedingung, [befehle]], ...]]` | Erster passender Zweig |
 | `["goto", raum, eingang]` | Raumwechsel |
 | `["walk", x, y]` | Figur läuft zu einem Punkt |
+| `["music", stück]`, `["music"]` | Anderes Musikstück bis zum nächsten Raumwechsel; ohne Stück zurück zur Raummusik |
 | `["anim", "name"]` | Spielfigur spielt die Aktion `art/actors/<figur>/<name>_N.png` (weiter beim Bild `grab`) |
 | `["medal", id]` | Sammelobjekt vergeben (einmalig) |
 | `["dialog", id]` | Dialog starten |

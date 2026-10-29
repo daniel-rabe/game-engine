@@ -14,7 +14,7 @@ from pathlib import Path
 # Spielordner: --root=<pfad>, sonst das aktuelle Verzeichnis.
 ROOT = Path(next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--root=")), ".")).resolve()
 COMMANDS = {"say", "set", "clear", "give", "remove", "confiscate", "if", "case", "goto", "walk",
-            "medal", "dialog", "title", "wait"}
+            "medal", "dialog", "title", "wait", "music"}
 VERBS = {"give", "open", "close", "take", "talk", "use", "push", "pull", "look", "walk"}
 
 def load(rel):
