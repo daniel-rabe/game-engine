@@ -99,6 +99,19 @@ func _ready() -> void:
 	load_data()
 
 
+## F11 oder Alt+Enter schaltet überall (auch Startbild und Menü) zwischen Fenster und Vollbild um.
+func _input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key and key.pressed and not key.echo and (key.keycode == KEY_F11 or (key.keycode == KEY_ENTER and key.alt_pressed)):
+		toggle_fullscreen()
+		get_viewport().set_input_as_handled()
+
+
+func toggle_fullscreen() -> void:
+	var full := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+
 func load_data() -> void:
 	meta = _load_json("res://data/game.json")
 	items = _load_json("res://data/items.json")
