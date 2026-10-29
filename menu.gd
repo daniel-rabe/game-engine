@@ -8,6 +8,8 @@ extends Control
 ## Hintergrund: game.json "menu": {"panel": Bild, "panel_margin": Rahmenbreite in Bildpunkten};
 ## das Bild wird auf die Menübreite verkleinert, nur die Mitte streckt sich (Neun-Felder-Raster).
 ## Ohne Bild ein schlichter dunkler Kasten.
+## Das Menü wächst mit dem Fenster nur bis "max_scale" (game.json "menu", Standard 2,
+## also so groß wie bei einem 1280x800-Fenster); in größeren Fenstern bleibt es so groß.
 
 signal closed
 
@@ -17,8 +19,10 @@ const ENTRY_HOVER := Color("#fff2c0")
 const ENTRY_DISABLED := Color(0.6, 0.55, 0.45, 0.5)
 const OUTLINE := Color("#1a0f08")
 const PANEL_WIDTH := 340.0
+const MAX_SCALE := 2.0
 
 var view = null  # main.gd, für Hinweise (_toast)
+var _frame: Control  # hält Bild und Kasten, wird in großen Fenstern verkleinert
 var _plate: NinePatchRect
 var _panel: PanelContainer
 var _title: Label
@@ -37,6 +41,11 @@ func _init() -> void:
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
 
+	_frame = Control.new()
+	_frame.size = size
+	_frame.pivot_offset = size / 2
+	_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_frame)
 	_panel = PanelContainer.new()
 	var cfg: Dictionary = Game.meta.get("menu", {})
 	var tex: Texture2D = load(cfg["panel"]) if ResourceLoader.exists(cfg.get("panel", "")) else null
@@ -54,7 +63,7 @@ func _init() -> void:
 		_plate.patch_margin_bottom = m
 		_plate.scale = Vector2(k, k)
 		_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_plate)
+		_frame.add_child(_plate)
 		margin = m * k + 6
 		var empty := StyleBoxEmpty.new()
 		empty.set_content_margin_all(margin)
@@ -69,7 +78,7 @@ func _init() -> void:
 		frame.shadow_color = Color(0, 0, 0, 0.5)
 		frame.shadow_size = 8
 		_panel.add_theme_stylebox_override("panel", frame)
-	add_child(_panel)
+	_frame.add_child(_panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	_panel.add_child(box)
@@ -140,9 +149,23 @@ static func make_entry(text: String, font_size := 19, font: Font = null) -> Butt
 # --- Öffnen und Schließen ---------------------------------------------------
 
 func open() -> void:
+	_fit_window()
 	visible = true
 	get_tree().paused = true
 	_show_main()
+
+
+## Verkleinert das Menü, sobald das Fenster es über max_scale hinaus vergrößern würde.
+func _fit_window() -> void:
+	var win := Vector2(DisplayServer.window_get_size())
+	var stretch := minf(win.x / size.x, win.y / size.y)
+	var cap: float = Game.meta.get("menu", {}).get("max_scale", MAX_SCALE)
+	var f := minf(1.0, cap / stretch) if stretch > 0 else 1.0
+	_frame.scale = Vector2(f, f)
+
+
+func _ready() -> void:
+	get_tree().root.size_changed.connect(_fit_window)
 
 
 func close() -> void:
