@@ -4,7 +4,11 @@ extends Node2D
 ##
 ## Bedienung: Verb wählen, Objekt anklicken. Linksklick ohne Verb läuft,
 ## Rechtsklick nimmt das Standardverb des Objekts. F5 speichert, F9 lädt,
-## Esc bricht einen halben Satz ab, Linksklick oder Punkt überspringt Text.
+## Esc bricht einen halben Satz ab, sonst öffnet es das Spielmenü (menu.gd).
+## Linksklick oder Punkt überspringt Text.
+##
+## Mit game.json "title_screen" beginnt das Spiel mit einem Startbild und Menü
+## (Neues Spiel, Fortsetzen, Beenden), sonst sofort mit dem Intro.
 
 signal arrived
 signal choice_made(index: int)
@@ -20,10 +24,16 @@ const VERB_ACTIVE := Color("#8cff8c")
 const VERB_HINT := Color("#58c058")
 
 var room_view = null  # room_view.gd
+var music = null  # music.gd
+var voice = null  # voice.gd
+var menu = null  # menu.gd
 var sentence_label: Label
 var speech_label: Label
 var title_label: Label
 var title_bg: ColorRect
+var title_pic: TextureRect
+var start_screen: Control
+var _covered := false
 var toast_label: Label
 var medal_label: Label
 var counter_label: Label
@@ -45,9 +55,21 @@ var inv_scroll := 0
 
 var walk_target = null
 var companion_pos := Vector2.ZERO
+## Der Begleiter schwebt so hoch über dem Boden und so weit hinter der Spielfigur (Raumeinheiten, vorn im Raum).
+const COMPANION_HOVER := 36.0
+const COMPANION_BEHIND := 22.0
 var _skip := false
 var _inv_hover := ""
 var _talking := ""
+var _talk_text := ""
+var _talk_mood := ""
+var _talk_t := 0.0
+var _talk_duration := 1.0
+var _talk_spoken := 0.0  # Länge der Aufnahme zur laufenden Zeile (0: keine)
+## Mundformen beim Sprechen, je Buchstabe; alles andere (Leerzeichen, Satzzeichen) schließt den Mund.
+const MOUTHS := {"a": "open", "ä": "open", "o": "o", "u": "o", "ö": "o", "ü": "o", "e": "e", "i": "e", "y": "e",
+	"m": "closed", "b": "closed", "p": "closed"}
+const MOUTH_RATE := 11.0  # Wechsel pro Sekunde
 
 
 func _ready() -> void:
@@ -55,12 +77,23 @@ func _ready() -> void:
 	room_view = preload("res://addons/game_engine/room_view.gd").new()
 	room_view.scale = Vector2(ROOM_SCALE, ROOM_SCALE)
 	add_child(room_view)
+	music = preload("res://addons/game_engine/music.gd").new()
+	music.process_mode = Node.PROCESS_MODE_ALWAYS  # läuft im Menü weiter
+	add_child(music)
+	voice = preload("res://addons/game_engine/voice.gd").new()
+	add_child(voice)
+	var cursor = preload("res://addons/game_engine/cursor.gd").new()
+	cursor.view = self
+	add_child(cursor)
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
 	_refresh_ui()
 	if Game.meta.has("notice") and not Game.fast:
 		await _show_notice(Game.meta["notice"])
-	Game.new_game()
+	if Game.meta.has("title_screen") and not Game.fast:
+		_show_start_screen()
+	else:
+		Game.new_game()
 
 
 # --- Aufbau der Oberfläche --------------------------------------------------
@@ -167,10 +200,126 @@ func _build_ui() -> void:
 	title_bg.visible = false
 	title_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(title_bg)
+	title_pic = _make_picture(title_bg, "")
 	title_label = _make_label(title_bg, Vector2(20, 0), Vector2(600, 400), Color("#ffd27f"), 26)
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	menu = preload("res://addons/game_engine/menu.gd").new()
+	menu.view = self
+	root.add_child(menu)
+
+
+## Bild über den ganzen Bildschirm (640x400), gemalt gern größer; wird geglättet verkleinert.
+func _make_picture(parent: Node, path: String) -> TextureRect:
+	var r := TextureRect.new()
+	r.size = Vector2(640, 400)
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	r.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if path != "":
+		r.texture = room_view.texture(path)
+	parent.add_child(r)
+	return r
+
+
+## Textfeld einer Tafel: "top" (oberes Drittel), "left", "right" (je Hälfte) oder mittig.
+func _place_title(l: Label, where: String) -> void:
+	match where:
+		"top":
+			l.position = Vector2(20, 14)
+			l.size = Vector2(600, 130)
+		"left":
+			l.position = Vector2(20, 0)
+			l.size = Vector2(300, 400)
+		"right":
+			l.position = Vector2(320, 0)
+			l.size = Vector2(300, 400)
+		_:
+			l.position = Vector2(20, 0)
+			l.size = Vector2(600, 400)
+
+
+# --- Startbild --------------------------------------------------------------
+
+## game.json "title_screen": {"image", "music", "text" (Standard: "title"), "subtitle", "text_pos" ("top" …),
+## "menu_pos" (linke obere Ecke des 200x100 großen Menüs, Standard [220, 290])}
+func _show_start_screen() -> void:
+	var cfg: Dictionary = Game.meta["title_screen"]
+	var Menu = preload("res://addons/game_engine/menu.gd")
+	var bg := ColorRect.new()
+	bg.color = Color.BLACK
+	bg.size = Vector2(640, 400)
+	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	title_bg.get_parent().add_child(bg)
+	start_screen = bg
+	_make_picture(bg, cfg.get("image", ""))
+	var title := _make_label(bg, Vector2.ZERO, Vector2.ZERO, Color.WHITE, 52)
+	title.text = cfg.get("text", Game.meta.get("title", ""))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Menu.style_title(title, 52)
+	_place_title(title, cfg.get("text_pos", "top"))
+	if cfg.has("subtitle"):
+		title.size.y -= 26
+		var sub := _make_label(bg, title.position + Vector2(0, title.size.y - 8), Vector2(title.size.x, 30), Color.WHITE, 17)
+		sub.text = cfg["subtitle"]
+		sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		Menu.style_title(sub, 17)
+		sub.add_theme_color_override("font_color", Color("#f0e0c0"))
+		sub.add_theme_constant_override("outline_size", 5)
+	var list := VBoxContainer.new()
+	var at: Array = cfg.get("menu_pos", [220, 290])
+	list.position = Vector2(at[0], at[1])
+	list.size = Vector2(200, 100)
+	list.alignment = BoxContainer.ALIGNMENT_END
+	list.add_theme_constant_override("separation", 0)
+	bg.add_child(list)
+	for e in [["menu_new", _start_new], ["menu_continue", _start_continue], ["menu_quit", get_tree().quit]]:
+		var b: Button = Menu.make_entry(Game.text(e[0]))
+		b.disabled = e[0] == "menu_continue" and not Game.has_save()
+		b.pressed.connect(e[1])
+		list.add_child(b)
+	music.play(cfg.get("music", ""))
+
+
+func _close_start_screen() -> void:
+	start_screen.queue_free()
+	start_screen = null
+
+
+## Bis zur ersten Tafel bleibt der Bildschirm schwarz, damit der Startraum nicht kurz aufblitzt.
+func _start_new() -> void:
+	_cover()
+	_close_start_screen()
+	await Game.new_game()
+	_uncover()
+
+
+## Schwarzer Bildschirm (title_bg ohne Text), bis eine Tafel, ein Satz oder ein Gang ihn aufhebt.
+func _cover() -> void:
+	title_label.text = ""
+	title_pic.texture = null
+	title_bg.modulate.a = 1.0
+	title_bg.visible = true
+	_covered = true
+
+
+func _uncover() -> void:
+	if not _covered:
+		return
+	_covered = false
+	var tw := create_tween()
+	tw.tween_property(title_bg, "modulate:a", 0.0, 0.6)
+	await tw.finished
+	title_bg.visible = false
+
+
+func _start_continue() -> void:
+	if Game.load_game(Game.latest_slot()):
+		_close_start_screen()
 
 
 func _make_label(parent: Node, pos: Vector2, size: Vector2, color: Color, font_size: int) -> Label:
@@ -247,6 +396,10 @@ func _refresh_verbs() -> void:
 func _input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
 	var key := event as InputEventKey
+	if start_screen:
+		if key and key.pressed and not key.echo and key.keycode == KEY_M:
+			_toast(Game.text("music_on") if music.toggle_mute() else Game.text("music_off"))
+		return
 	if event is InputEventMouseMotion:
 		_update_hover()
 	elif mb and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
@@ -257,11 +410,16 @@ func _input(event: InputEvent) -> void:
 			KEY_PERIOD:
 				_skip = true
 			KEY_ESCAPE:
-				_reset_sentence()
+				if awaiting_second or verb != "walk":
+					_reset_sentence()
+				else:
+					open_menu()
 			KEY_F5:
 				_toast(Game.text("saved") if Game.save_game() else Game.text("save_failed"))
 			KEY_F9:
 				_toast(Game.text("loaded") if Game.load_game() else Game.text("load_failed"))
+			KEY_M:
+				_toast(Game.text("music_on") if music.toggle_mute() else Game.text("music_off"))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -389,6 +547,11 @@ func _update_sentence() -> void:
 	sentence_label.text = t
 
 
+func open_menu() -> void:
+	_reset_sentence()
+	menu.open()
+
+
 func _toast(text: String) -> void:
 	toast_label.text = text
 	await get_tree().create_timer(2.0).timeout
@@ -400,7 +563,8 @@ func _toast(text: String) -> void:
 
 func _process(delta: float) -> void:
 	if walk_target != null:
-		var stride := WALK_SPEED * delta
+		# weiter hinten kleiner und langsamer, damit die Schritte zur Größe passen
+		var stride: float = WALK_SPEED * delta * room_view.depth_scale(Game.player_pos.y)
 		var d: Vector2 = walk_target - Game.player_pos
 		if abs(d.x) > 0.5:
 			room_view.player_flip = d.x < 0
@@ -410,13 +574,31 @@ func _process(delta: float) -> void:
 			arrived.emit()
 		else:
 			Game.player_pos += d.normalized() * stride
-	var companion_home := Game.player_pos + Vector2(-18 if not room_view.player_flip else 18, -34)
+	var companion_home := _companion_home()
+	var before := companion_pos
 	companion_pos = companion_pos.lerp(companion_home, clampf(delta * 2.5, 0.0, 1.0))
+	# fliegt er, schaut er in Flugrichtung, sonst wie die Spielfigur
+	var vx := (companion_pos.x - before.x) / maxf(delta, 0.001)
+	room_view.companion_flying = absf(vx) > 6.0 or (companion_pos - companion_home).length() > 3.0
+	room_view.companion_flip = vx < 0 if absf(vx) > 6.0 else room_view.player_flip
+	room_view.companion_floor_y = companion_pos.y + COMPANION_HOVER * room_view.depth_scale(Game.player_pos.y)
 	room_view.player_pos = Game.player_pos
 	room_view.player_walking = walk_target != null
 	room_view.player_talking = _talking == Game.player_id
+	room_view.talking_id = _talking
+	var mouth := _mouth()
+	room_view.player_mouth = mouth if _talking == Game.player_id else ""
+	room_view.player_mood = _talk_mood if _talking == Game.player_id else ""
+	room_view.companion_mouth = mouth if _talking == Game.companion_id else ""
+	room_view.companion_mood = _talk_mood if _talking == Game.companion_id else ""
 	room_view.companion_pos = companion_pos
 	room_view.show_companion = Game.companion_id != "" and Game.check(Game.meta["companion"].get("if"))
+
+
+## Platz des Begleiters: hinter der Spielfigur in der Luft, mit der Raumtiefe kleiner.
+func _companion_home() -> Vector2:
+	var s: float = room_view.depth_scale(Game.player_pos.y)
+	return Game.player_pos + Vector2(COMPANION_BEHIND if room_view.player_flip else -COMPANION_BEHIND, -COMPANION_HOVER) * s
 
 
 func _clamp_walk(p: Vector2) -> Vector2:
@@ -429,12 +611,14 @@ func _clamp_walk(p: Vector2) -> Vector2:
 func room_entered() -> void:
 	walk_target = null
 	room_view.set_room(Game.room())
-	companion_pos = Game.player_pos + Vector2(-18, -34)
+	music.room_entered(Game.room())
+	companion_pos = _companion_home()
 	_update_hover()
 
 
 func walk_to(p: Vector2) -> void:
 	p = _clamp_walk(p)
+	_uncover()
 	if Game.fast:
 		Game.player_pos = p
 		return
@@ -444,19 +628,49 @@ func walk_to(p: Vector2) -> void:
 
 func walk_to_hotspot(h: Dictionary) -> void:
 	await walk_to(Game.hotspot_walk_point(h))
+	# zum Objekt drehen
+	var r: Array = h["rect"]
+	var dx: float = r[0] + r[2] / 2.0 - Game.player_pos.x
+	if absf(dx) > 2.0:
+		room_view.player_flip = dx < 0
 
 
-func say(who: String, text: String) -> void:
+## Spielt eine Aktion der Spielfigur ab und kehrt im Moment des Zugreifens zurück;
+## der Rest der Aktion läuft weiter, während das Skript fortfährt.
+func play_action(action: String) -> void:
+	var grab: float = room_view.start_action(action)
+	if grab > 0.0:
+		await get_tree().create_timer(grab).timeout
+
+
+## Mundform zum Zeitpunkt im laufenden Satz: der Text wird über die Sprechdauer abgefahren, in festen
+## Schritten, damit der Mund nicht flackert. Kein echtes Lip-Sync, nur der Takt des Satzes.
+func _mouth() -> String:
+	if _talking.is_empty() or _talk_text.is_empty():
+		return ""
+	# am Ende schließt sich der Mund, der Text steht noch kurz; mit Aufnahme spricht er genau so lange wie die Stimme
+	var talked := _talk_spoken if _talk_spoken > 0.0 else _talk_duration * 0.85
+	if _talk_t >= talked:
+		return "closed"
+	var step := floorf(_talk_t * MOUTH_RATE) / MOUTH_RATE
+	var c := _talk_text[int(step / talked * _talk_text.length())].to_lower()
+	if MOUTHS.has(c):
+		return MOUTHS[c]
+	return "small" if c.to_upper() != c else "closed"
+
+
+func say(who: String, text: String, mood := "") -> void:
 	if Game.fast:
 		return
+	await _uncover()
 	var color := Color(Game.characters.get(who, {}).get("color", "#ffffff"))
 	speech_label.add_theme_color_override("font_color", color)
 	speech_label.text = text
 	var anchor := Vector2(320, 110)
 	if who == Game.player_id:
-		anchor = Game.player_pos * ROOM_SCALE + Vector2(0, -96)
+		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
 	elif who == Game.companion_id and room_view.show_companion:
-		anchor = companion_pos * ROOM_SCALE + Vector2(0, -24)
+		anchor = (companion_pos - Vector2(0, room_view.companion_height() / 2)) * ROOM_SCALE
 	else:
 		# Figuren im Raum sind Hotspots mit "speaker"; der Text steht über ihnen.
 		for h in Game.visible_hotspots():
@@ -464,32 +678,67 @@ func say(who: String, text: String) -> void:
 				var r: Array = h["rect"]
 				anchor = Vector2(r[0] + r[2] / 2.0, r[1] - 4) * ROOM_SCALE
 				break
+	var top := 0.0
+	if room_view.frame().position.y > 0:
+		# schmaler Ausschnitt (Raumfeld "frame"): alle Sätze stehen im Schwarz darüber. Das Textfeld ist unten
+		# ausgerichtet und höher als der Text, darf also oben aus dem Bild ragen
+		anchor.y = room_view.frame().position.y * ROOM_SCALE - 6
+		top = -speech_label.size.y
 	speech_label.position = Vector2(
 		clampf(anchor.x - speech_label.size.x / 2, 4, 636 - speech_label.size.x),
-		max(anchor.y - speech_label.size.y, 0))
+		max(anchor.y - speech_label.size.y, top))
 	_talking = who
+	_talk_text = text
+	_talk_mood = mood
 	_skip = false
-	var duration := clampf(text.length() * 0.065, 1.5, 8.0)
-	var t := 0.0
-	while t < duration and not _skip:
+	_talk_duration = clampf(text.length() * 0.065, 1.5, 8.0)
+	_talk_spoken = voice.play(who, text)
+	if _talk_spoken > 0.0:  # gesprochen: der Text steht, solange die Stimme spricht
+		_talk_duration = _talk_spoken + 0.5
+	_talk_t = 0.0
+	while _talk_t < _talk_duration and not _skip:
 		await get_tree().process_frame
-		t += get_process_delta_time()
+		if not get_tree().paused:  # Spielmenü offen
+			_talk_t += get_process_delta_time()
+	voice.stop()
 	_skip = false
 	_talking = ""
 	speech_label.text = ""
 
 
-func show_title(text: String) -> void:
+## Texttafel; mit image als gemalte Akttafel (Text an Stelle where, siehe _place_title), weich ein- und ausgeblendet.
+func show_title(text: String, image := "", where := "") -> void:
 	if Game.fast:
 		return
 	title_label.text = text
+	title_pic.texture = room_view.texture(image) if image != "" else null
+	var painted := title_pic.texture != null
+	preload("res://addons/game_engine/menu.gd").style_title(title_label, 40 if painted else 26)
+	_place_title(title_label, where if painted else "")
+	# gemalte Tafeln kommen aus Schwarz: aus dem schwarzen Bildschirm, sonst blendet erst das Schwarz über den Raum ein
+	if painted:
+		var tw := create_tween()
+		if not _covered:
+			title_bg.modulate.a = 0.0
+			tw.tween_property(title_bg, "modulate:a", 1.0, 0.4)
+		title_pic.modulate.a = 0.0
+		title_label.modulate.a = 0.0
+		tw.tween_property(title_pic, "modulate:a", 1.0, 0.6)
+		tw.parallel().tween_property(title_label, "modulate:a", 1.0, 0.6)
+	else:
+		title_bg.modulate.a = 1.0
+	_covered = false
 	title_bg.visible = true
 	_skip = false
 	var t := 0.0
-	while t < 4.0 and not _skip:
+	while t < (5.0 if painted else 4.0) and not _skip:
 		await get_tree().process_frame
 		t += get_process_delta_time()
 	_skip = false
+	if painted:
+		var tw := create_tween()
+		tw.tween_property(title_bg, "modulate:a", 0.0, 0.6)
+		await tw.finished
 	title_bg.visible = false
 
 
@@ -532,6 +781,10 @@ func _show_notice(notice: Dictionary) -> void:
 	Game.busy = true
 	title_label.text = "%s\n\n%s\n\n%s" % [notice.get("title", ""), notice.get("text", ""), notice.get("continue", "Weiter mit Klick")]
 	title_label.add_theme_font_size_override("font_size", 16)
+	title_pic.texture = null
+	_place_title(title_label, "")
+	title_bg.modulate.a = 1.0
+	title_label.modulate.a = 1.0
 	title_bg.visible = true
 	_skip = false
 	while not _skip:

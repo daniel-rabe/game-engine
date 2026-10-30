@@ -15,7 +15,7 @@ from pathlib import Path
 # Spielordner: --root=<pfad>, sonst das aktuelle Verzeichnis.
 ROOT = Path(next((a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--root=")), ".")).resolve()
 COMMANDS = {"say", "set", "clear", "give", "remove", "confiscate", "if", "case", "goto", "walk",
-            "medal", "dialog", "title", "wait", "add", "count", "duel"}
+            "medal", "dialog", "title", "wait", "music", "add", "count", "duel"}
 COMPARE = re.compile(r"^([A-Za-z0-9_]+)(==|!=|>=|<=|>|<)(-?[0-9]+)$")
 VERBS = {"give", "open", "close", "take", "talk", "use", "push", "pull", "look", "walk"}
 
@@ -152,6 +152,9 @@ for rid, room in rooms.items():
         x, y, w, hh = h["rect"]
         if x < 0 or y < 0 or x + w > 320 or y + hh > 144:
             errors.append(f"{where}: Rechteck ragt aus dem Raum (320x144)")
+        fx, fy, fw, fh = room.get("frame", [0, 0, 320, 144])
+        if x < fx or y < fy or x + w > fx + fw or y + hh > fy + fh:
+            errors.append(f"{where}: Rechteck ragt aus dem sichtbaren Ausschnitt (frame)")
         check_cond(h.get("if"), where)
         check_cond(h.get("exit_if"), where)
         if h.get("speaker") and h["speaker"] not in speakers:
