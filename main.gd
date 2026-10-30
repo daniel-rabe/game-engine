@@ -61,6 +61,7 @@ var _talk_text := ""
 var _talk_mood := ""
 var _talk_t := 0.0
 var _talk_duration := 1.0
+var _talk_spoken := 0.0  # Länge der Aufnahme zur laufenden Zeile (0: keine)
 ## Mundformen beim Sprechen, je Buchstabe; alles andere (Leerzeichen, Satzzeichen) schließt den Mund.
 const MOUTHS := {"a": "open", "ä": "open", "o": "o", "u": "o", "ö": "o", "ü": "o", "e": "e", "i": "e", "y": "e",
 	"m": "closed", "b": "closed", "p": "closed"}
@@ -604,7 +605,8 @@ func play_action(action: String) -> void:
 func _mouth() -> String:
 	if _talking.is_empty() or _talk_text.is_empty():
 		return ""
-	var talked := _talk_duration * 0.85  # am Ende schließt sich der Mund, der Text steht noch kurz
+	# am Ende schließt sich der Mund, der Text steht noch kurz; mit Aufnahme spricht er genau so lange wie die Stimme
+	var talked := _talk_spoken if _talk_spoken > 0.0 else _talk_duration * 0.85
 	if _talk_t >= talked:
 		return "closed"
 	var step := floorf(_talk_t * MOUTH_RATE) / MOUTH_RATE
@@ -641,9 +643,9 @@ func say(who: String, text: String, mood := "") -> void:
 	_talk_mood = mood
 	_skip = false
 	_talk_duration = clampf(text.length() * 0.065, 1.5, 8.0)
-	var spoken: float = voice.play(who, text)
-	if spoken > 0.0:  # gesprochen: der Text steht, solange die Stimme spricht
-		_talk_duration = spoken + 0.5
+	_talk_spoken = voice.play(who, text)
+	if _talk_spoken > 0.0:  # gesprochen: der Text steht, solange die Stimme spricht
+		_talk_duration = _talk_spoken + 0.5
 	_talk_t = 0.0
 	while _talk_t < _talk_duration and not _skip:
 		await get_tree().process_frame
