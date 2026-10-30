@@ -10,6 +10,9 @@ Gegenstände, Dialoge und die Skripte an Hotspots. Es gibt keinen Bytecode und
 keinen spielspezifischen Code im Addon. Fehlende Grafiken zeichnet sie als
 Platzhalter, sodass jedes Spiel ohne eine einzige PNG-Datei durchspielbar ist.
 
+Dazu kommen Zähler mit Anzeige (etwa Unterschriften), Argumente-Duelle mit
+Publikumsbarometer und ein Hinweis vor dem Spielstart.
+
 ## Inhalt
 
 | Datei | Aufgabe |
@@ -24,7 +27,7 @@ Platzhalter, sodass jedes Spiel ohne eine einzige PNG-Datei durchspielbar ist.
 | `tests/menu_test.gd` | Spielmenü (Esc): Speichern, Laden, Beenden-Abfrage; mit `--shots=<ordner>` Bildschirmfotos |
 | `tools/check_game.py` | Prüft die Daten und simuliert die Komplettlösung ohne Godot |
 | `tools/asset_manifest.py` | Erzeugt `art/manifest.json` und Layoutvorlagen für ComfyUI |
-| `demo/` | Kleines Testspiel für die Engine selbst |
+| `demo/` | Kleines Testspiel für die Engine selbst (`project.godot.demo`) |
 | `docs/format.md` | Das Datenformat |
 
 ## In ein Spiel einbinden

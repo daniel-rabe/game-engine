@@ -2,11 +2,64 @@
   "id": "hof",
   "name": "Hof",
   "art_prompt": "small backyard",
-  "bg": {"wall": "#4a6a8a", "floor": "#3a4a2a", "floor_y": 96},
-  "walk": [20, 100, 300, 138],
-  "entries": {"werkstatt": [40, 120]},
-  "on_enter": [["set", "im_hof"]],
+  "bg": {
+    "wall": "#4a6a8a",
+    "floor": "#3a4a2a",
+    "floor_y": 96
+  },
+  "walk": [
+    20,
+    100,
+    300,
+    138
+  ],
+  "entries": {
+    "werkstatt": [
+      40,
+      120
+    ]
+  },
+  "on_enter": [
+    [
+      "set",
+      "im_hof"
+    ]
+  ],
   "hotspots": [
-    {"id": "tuer", "name": "Tür zur Werkstatt", "rect": [4, 46, 30, 54], "color": "#5a4a3a", "exit": "werkstatt", "entry": "hof"}
+    {
+      "id": "tuer",
+      "name": "Tür zur Werkstatt",
+      "rect": [
+        4,
+        46,
+        30,
+        54
+      ],
+      "color": "#5a4a3a",
+      "exit": "werkstatt",
+      "entry": "hof"
+    },
+    {
+      "id": "streiter",
+      "name": "Streiter",
+      "rect": [
+        200,
+        56,
+        16,
+        44
+      ],
+      "speaker": "streiter",
+      "color": "#7a3a3a",
+      "default": "talk",
+      "if": "!duel_won:hof",
+      "verbs": {
+        "talk": [
+          [
+            "duel",
+            "hof"
+          ]
+        ]
+      }
+    }
   ]
 }

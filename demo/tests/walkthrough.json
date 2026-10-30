@@ -1,12 +1,16 @@
 {
   "description": "Komplettlösung des Demospiels.",
   "steps": [
+    ["look", "schild"],
     ["open", "kiste"],
     ["use", "gluehbirne", "lampe"],
     ["choose", 0, 0],
     ["talk", "nachbar"],
-    ["walk", "tuer"]
+    ["walk", "tuer"],
+    ["choose", "filler:0", "ruhe", "alter", "ruhe"],
+    ["talk", "streiter"]
   ],
-  "expect_flags": ["lampe_an", "im_hof"],
-  "expect_medals": ["lampe"]
+  "expect_flags": ["lampe_an", "im_hof", "duel_won:hof"],
+  "expect_medals": ["lampe"],
+  "expect_counters": {"punkte": 3}
 }

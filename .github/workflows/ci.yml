@@ -9,7 +9,7 @@ jobs:
   demo:
     runs-on: ubuntu-latest
     env:
-      GODOT_VERSION: 4.4.1
+      GODOT_VERSION: 4.7.1
     steps:
       - uses: actions/checkout@v4
       - name: Godot laden

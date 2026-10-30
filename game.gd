@@ -71,6 +71,7 @@ var meta: Dictionary = {}
 var rooms: Dictionary = {}
 var items: Dictionary = {}
 var dialogs: Dictionary = {}
+var duels: Dictionary = {}
 var characters: Dictionary = {}
 ## Sprecher-Id der Spielfigur (game.json "player.id").
 var player_id: String = "player"
@@ -80,6 +81,8 @@ var companion_id: String = ""
 var flags: Dictionary = {}
 var inventory: Array = []
 var medals: Array = []
+## Zähler wie Unterschriften: {"name": zahl}, Definitionen in game.json "counters".
+var counters: Dictionary = {}
 var room_id: String = ""
 var player_pos: Vector2 = Vector2.ZERO
 
@@ -89,8 +92,11 @@ var view = null
 var busy: bool = false
 ## Testmodus: keine Wartezeiten, Dialoge wählen automatisch.
 var fast: bool = false
-## Vorgegebene Dialogauswahl für Tests (Indizes der sichtbaren Optionen).
+## Vorgegebene Auswahl für Tests: Indizes der sichtbaren Dialogoptionen oder
+## Ids von Entgegnungen im Duell.
 var scripted_choices: Array = []
+## Fehler, die ein Test melden soll (z. B. vorgegebene Wahl nicht möglich).
+var test_errors: Array = []
 ## Ordner der Spielstände; Tests nehmen einen eigenen.
 var save_dir: String = "user://"
 
@@ -116,6 +122,7 @@ func load_data() -> void:
 	meta = _load_json("res://data/game.json")
 	items = _load_json("res://data/items.json")
 	dialogs = _load_json("res://data/dialogs.json")
+	duels = _load_json("res://data/duels.json") if FileAccess.file_exists("res://data/duels.json") else {}
 	characters = meta.get("characters", {})
 	player_id = meta.get("player", {}).get("id", "player")
 	companion_id = meta.get("companion", {}).get("id", "")
@@ -143,6 +150,7 @@ func new_game() -> void:
 	flags.clear()
 	inventory.clear()
 	medals.clear()
+	counters.clear()
 	busy = true
 	await change_room(meta["start_room"], meta.get("start_entry", ""))
 	await run(meta.get("intro", []))
@@ -163,6 +171,7 @@ func save_game(slot := 0) -> bool:
 		"flags": flags,
 		"inventory": inventory,
 		"medals": medals,
+		"counters": counters,
 		"time": int(Time.get_unix_time_from_system()),
 	}
 	var f := FileAccess.open(save_path(slot), FileAccess.WRITE)
@@ -213,6 +222,7 @@ func load_game(slot := 0) -> bool:
 	flags = data["flags"]
 	inventory = data["inventory"]
 	medals = data["medals"]
+	counters = data.get("counters", {})
 	room_id = data["room"]
 	player_pos = Vector2(data["pos"][0], data["pos"][1])
 	if view:
@@ -234,7 +244,8 @@ func _read_save(slot: int):
 # --- Bedingungen ------------------------------------------------------------
 
 ## Bedingung prüfen: null (immer wahr), "flag", "!flag", "has:item",
-## "medal:id" oder ein Array von Bedingungen, die alle gelten müssen.
+## "medal:id", ein Zählervergleich wie "unterschriften>=400" oder ein Array
+## von Bedingungen, die alle gelten müssen.
 func check(cond) -> bool:
 	if cond == null:
 		return true
@@ -252,9 +263,35 @@ func check(cond) -> bool:
 		result = inventory.has(s.substr(4))
 	elif s.begins_with("medal:"):
 		result = medals.has(s.substr(6))
+	elif _COMPARE.search(s):
+		result = _compare(s)
 	else:
 		result = flags.get(s, false)
 	return result != negate
+
+
+const _OPS := ["==", "!=", ">=", "<=", ">", "<"]
+static var _COMPARE := RegEx.create_from_string("^[A-Za-z0-9_]+(==|!=|>=|<=|>|<)-?[0-9]+$")
+
+
+func _compare(s: String) -> bool:
+	for op in _OPS:
+		var i := s.find(op)
+		if i > 0:
+			var value := int(counters.get(s.substr(0, i), 0))
+			var target := int(s.substr(i + op.length()))
+			match op:
+				"==": return value == target
+				"!=": return value != target
+				">=": return value >= target
+				"<=": return value <= target
+				">": return value > target
+				"<": return value < target
+	return false
+
+
+func counter(name: String) -> int:
+	return int(counters.get(name, 0))
 
 
 # --- Räume und Objekte ------------------------------------------------------
@@ -464,6 +501,14 @@ func _exec(a: Array) -> void:
 				player_pos = Vector2(a[1], a[2])
 		"medal":
 			await award_medal(a[1])
+		"add":
+			counters[a[1]] = counter(a[1]) + int(a[2])
+			state_changed.emit()
+		"count":
+			counters[a[1]] = int(a[2])
+			state_changed.emit()
+		"duel":
+			await run_duel(a[1])
 		"dialog":
 			await run_dialog(a[1])
 		"title":
@@ -482,12 +527,16 @@ func _exec(a: Array) -> void:
 			push_error("Unbekannter Befehl: %s" % str(a))
 
 
+## Sprechtext; "{zaehler}" im Text wird durch den Zählerstand ersetzt.
 ## mood: Stimmung für die Sprechbilder ("" = ruhig, z. B. "happy"), siehe room_view._talk_frame
-func say(who: String, text: String, mood := "") -> void:
+func say(who: String, line: String, mood := "") -> void:
+	if "{" in line:
+		for c in counters:
+			line = line.replace("{%s}" % c, str(counters[c]))
 	if view:
-		await view.say(who, text, mood)
+		await view.say(who, line, mood)
 	elif not fast:
-		print("%s: %s" % [characters.get(who, {}).get("name", who), text])
+		print("%s: %s" % [characters.get(who, {}).get("name", who), line])
 
 
 func award_medal(id: String) -> void:
@@ -517,7 +566,7 @@ func run_dialog(id: String) -> void:
 			return
 		var choice := shown.size() - 1
 		if not scripted_choices.is_empty():
-			choice = scripted_choices.pop_front()
+			choice = int(scripted_choices.pop_front())
 		elif view and not fast:
 			var texts := []
 			for i in shown:
@@ -530,3 +579,91 @@ func run_dialog(id: String) -> void:
 		await say(player_id, option["text"], option.get("mood", ""))
 		await run(option.get("do", []))
 		node_id = option.get("next", "end")
+
+
+# --- Argumente-Duell --------------------------------------------------------
+
+## Argumente-Duell nach Art des Beleidigungsfechtens (Daten in data/duels.json).
+## Die Gegenseite bringt eine Behauptung, die Spielfigur wählt eine Entgegnung.
+## Passt sie, steigt das Publikumsbarometer, sonst sinkt es. Bei "win" ist das
+## Duell gewonnen, bei "lose" abgebrochen; man kann es jederzeit neu versuchen.
+func run_duel(id: String) -> void:
+	var d: Dictionary = duels.get(id, {})
+	if d.is_empty():
+		push_error("Unbekanntes Duell: %s" % id)
+		return
+	var opponent: String = d.get("opponent", "text")
+	var meter: int = d.get("start", 50)
+	var step: int = d.get("step", 10)
+	var rounds: Array = d.get("rounds", [])
+	var countered := {}
+	if view:
+		view.duel_meter(d.get("label", "Publikum"), meter)
+	await run(d.get("intro", []))
+	var r := 0
+	while meter < d.get("win", 100) and meter > d.get("lose", 0) and not rounds.is_empty():
+		if countered.size() >= rounds.size():
+			countered.clear()
+		while countered.has(r % rounds.size()):
+			r += 1
+		var index := r % rounds.size()
+		var rd: Dictionary = rounds[index]
+		r += 1
+		await say(opponent, rd["claim"])
+		var options := duel_options(d)
+		var pick := options.size() - 1
+		if not scripted_choices.is_empty():
+			pick = _duel_pick(options, scripted_choices.pop_front())
+		elif view and not fast:
+			var texts := []
+			for o in options:
+				texts.append(o["text"])
+			pick = await view.choose(texts)
+		var answer: Dictionary = options[clampi(pick, 0, options.size() - 1)]
+		await say(player_id, answer["text"])
+		var correct = rd.get("answer", [])
+		if correct is String:
+			correct = [correct]
+		if correct.has(answer["id"]):
+			countered[index] = true
+			meter = mini(meter + step, 100)
+			if view:
+				view.duel_meter(d.get("label", "Publikum"), meter)
+			await run(rd.get("hit", d.get("hit", [])))
+		else:
+			meter = maxi(meter - step, 0)
+			if view:
+				view.duel_meter(d.get("label", "Publikum"), meter)
+			await run(rd.get("miss", d.get("miss", [])))
+	if view:
+		view.duel_meter("", -1)
+	if meter >= d.get("win", 100):
+		flags["duel_won:" + id] = true
+		await run(d.get("on_win", []))
+	else:
+		await run(d.get("on_lose", []))
+
+
+## Entgegnungen, die gerade zur Wahl stehen: freigeschaltete zuerst, dann die
+## immer verfügbaren schwachen Antworten ("fillers").
+func duel_options(d: Dictionary) -> Array:
+	var out := []
+	var retorts: Dictionary = d.get("retorts", {})
+	for rid in retorts:
+		if check(retorts[rid].get("if")):
+			out.append({"id": rid, "text": retorts[rid]["text"]})
+	var fillers: Array = d.get("fillers", ["Äh ..."])
+	for i in fillers.size():
+		out.append({"id": "filler:%d" % i, "text": fillers[i]})
+	return out
+
+
+## Vorgegebene Wahl im Test: Index oder Id der Entgegnung.
+func _duel_pick(options: Array, wanted) -> int:
+	if wanted is String:
+		for i in options.size():
+			if options[i]["id"] == wanted:
+				return i
+		test_errors.append("Entgegnung %s steht im Duell nicht zur Wahl" % wanted)
+		return options.size() - 1
+	return int(wanted)

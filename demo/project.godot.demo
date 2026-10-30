@@ -1,4 +1,6 @@
-; Kleines Testspiel für die Engine selbst (siehe tests/run_demo.sh)
+; Kleines Testspiel für die Engine selbst. tests/run_demo.sh kopiert es als
+; project.godot in ein temporäres Projekt (hier umbenannt, damit Godot in den
+; Spielen keine zweite project.godot im Addon findet).
 
 config_version=5
 
@@ -6,7 +8,7 @@ config_version=5
 
 config/name="Engine-Demo"
 run/main_scene="res://addons/game_engine/main.tscn"
-config/features=PackedStringArray("4.4")
+config/features=PackedStringArray("4.7")
 
 [autoload]
 

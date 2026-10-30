@@ -7,6 +7,7 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 | `data/game.json` | Titel, Startraum, Spielfigur, Figuren, Sammelobjekte, Intro, Stil der Grafiken |
 | `data/items.json` | Gegenstände: `{"id": {...}}` |
 | `data/dialogs.json` | Dialogbäume: `{"id": {"knoten": {...}}}` |
+| `data/duels.json` | Argumente-Duelle (optional) |
 | `data/rooms/<raum>.json` | Ein Raum pro Datei, Reihenfolge in `game.json` → `rooms` |
 | `tests/walkthrough.json` | Komplettlösung für die Durchspieltests |
 
@@ -24,6 +25,8 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
   "medal_label": {"one": "Schraubenmedaille", "many": "Schraubenmedaillen"},
   "medals": {"wasserhahn": "Tropfenden Wasserhahn repariert"},
   "texts": {"look": "Nichts Besonderes."},
+  "counters": {"unterschriften": {"label": "Unterschriften", "goal": 400, "hud": "begehren_gestartet"}},
+  "notice": {"title": "Hinweis", "text": "...", "continue": "Weiter mit Klick"},
   "intro": [["title", "STERNENSCHROTT"]],
   "art": {"style": "pixel art, ...", "negative": "photo, ...", "actors": {"ria": {"size": [32, 48], "walk_frames": 6, "prompt": "..."}}}
 }
@@ -57,6 +60,8 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
   die Engine `<dir>/<sprecher>/<schlüssel>.ogg` (Schlüssel: die ersten 12 Zeichen des MD5 des Texts), lässt
   den Text so lange stehen, wie die Aufnahme dauert, und senkt die Musik um `duck_db`. Überspringen stoppt
   den Ton. Fehlt die Datei (etwa nach einer Textänderung), bleibt die Zeile stumm (Bus „Voice“).
+- `counters`: Zähler mit Anzeigename, optionalem Ziel und `hud` (Bedingung, solange der Zähler unten links steht).
+- `notice`: Hinweis vor dem Spielstart (z. B. Content-Hinweis), weiter per Klick.
 - `intro`: Befehle beim Spielstart.
 - `title_screen` (optional): Startbild mit Menü (Neues Spiel, Fortsetzen, Beenden) vor dem Intro:
   `{"image": "res://art/screens/titel.png", "music": "titel", "subtitle": "…", "text_pos": "top", "menu_pos": [220, 290]}`.
@@ -161,10 +166,46 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 | `["dialog", id]` | Dialog starten |
 | `["title", text, bild, ort]` | Texttafel; mit `bild` gemalte Tafel, die aus Schwarz einblendet, Text an `ort` (`left`, `right`, `top`, sonst mittig) |
 | `["wait", sekunden]` | Warten |
+| `["add", zaehler, n]`, `["count", zaehler, n]` | Zähler um n erhöhen (n darf negativ sein) oder auf n setzen |
+| `["duel", id]` | Argumente-Duell starten |
+
+In Sprechtexten wird `{zaehler}` durch den Zählerstand ersetzt.
 
 ## Bedingungen
 
-`"flag"`, `"!flag"`, `"has:item"`, `"medal:id"` oder eine Liste von Bedingungen, die alle gelten müssen.
+`"flag"`, `"!flag"`, `"has:item"`, `"medal:id"`, ein Zählervergleich wie `"unterschriften>=400"`
+(`==`, `!=`, `>=`, `<=`, `>`, `<`) oder eine Liste von Bedingungen, die alle gelten müssen.
+Ein gewonnenes Duell setzt das Flag `duel_won:<id>`.
+
+## Argumente-Duelle
+
+Eine Hommage an das Beleidigungsfechten: Die Gegenseite bringt eine Behauptung, die Spielfigur
+wählt eine Entgegnung. Passt sie, steigt das Publikumsbarometer um `step`, sonst sinkt es.
+Ab `win` ist das Duell gewonnen, bei `lose` bricht es ab und kann neu gestartet werden.
+Runden, die schon gekontert wurden, kommen erst wieder, wenn alle durch sind.
+
+```json
+{"stammtisch": {
+  "label": "Stammtisch",
+  "opponent": "wirt",
+  "start": 50, "step": 10, "win": 80, "lose": 20,
+  "intro": [["say", "wirt", "Na, Fräulein Weltverbesserin?"]],
+  "rounds": [
+    {"claim": "Der Schuppen kostet uns Millionen!", "answer": "haushalt",
+     "hit": [["say", "wirt", "Hm. 38.000? Echt?"]], "miss": [["say", "text", "Am Tresen wird gelacht."]]}
+  ],
+  "retorts": {"haushalt": {"text": "Laut Haushalt sind es 38.000 Euro im Jahr.", "if": "haushalt_gelesen"}},
+  "fillers": ["Selber!"],
+  "hit": [], "miss": [],
+  "on_win": [["set", "stammtisch_gewonnen"]],
+  "on_lose": [["say", "nele", "Ich brauche bessere Argumente."]]
+}}
+```
+
+- `retorts`: Entgegnungen, sichtbar solange `if` gilt (so werden sie durch Recherche freigeschaltet).
+- `answer`: Id einer passenden Entgegnung oder eine Liste davon.
+- `fillers`: schwache Antworten, die immer zur Wahl stehen und nie passen.
+- `hit`/`miss` an der Runde ersetzen die allgemeinen `hit`/`miss` des Duells.
 
 ## Komplettlösung
 
@@ -174,4 +215,5 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 ```
 
 Jeder Schritt ist ein Satz wie aus der Oberfläche. `["choose", i, j, ...]` legt die Auswahl im
-nächsten Dialog fest (Indizes der jeweils sichtbaren Optionen).
+nächsten Dialog fest (Indizes der jeweils sichtbaren Optionen). Im Duell nimmt man statt Indizes
+die Ids der Entgegnungen (`"haushalt"`, `"filler:0"`). `expect_counters` prüft Zählerstände am Ende.

@@ -24,7 +24,7 @@ func _run() -> void:
 	for step in wt["steps"]:
 		n += 1
 		if step[0] == "choose":
-			game.scripted_choices = step.slice(1).map(func(c): return int(c))
+			game.scripted_choices = step.slice(1).map(func(c): return c if c is String else int(c))
 			continue
 		var verb: String = step[0]
 		var a: String = step[1]
@@ -39,6 +39,9 @@ func _run() -> void:
 		if verb == "walk" and is_exit and game.room_id == room_before:
 			_fail("Schritt %d %s: Ausgang hat nicht funktioniert" % [n, str(step)])
 			return
+		if not game.test_errors.is_empty():
+			_fail("Schritt %d %s: %s" % [n, str(step), game.test_errors[0]])
+			return
 	for f in wt.get("expect_flags", []):
 		if not game.flags.get(f, false):
 			_fail("Flag %s fehlt am Ende" % f)
@@ -46,6 +49,11 @@ func _run() -> void:
 	for m in wt.get("expect_medals", []):
 		if not game.medals.has(m):
 			_fail("Medaille %s fehlt am Ende" % m)
+			return
+	var expected: Dictionary = wt.get("expect_counters", {})
+	for c in expected:
+		if game.counter(c) != int(expected[c]):
+			_fail("Zähler %s ist %d statt %d" % [c, game.counter(c), int(expected[c])])
 			return
 	print("Durchspieltest bestanden: %d Schritte, %d Medaillen" % [n, game.medals.size()])
 	quit(0)

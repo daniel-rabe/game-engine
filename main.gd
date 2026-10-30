@@ -36,6 +36,10 @@ var start_screen: Control
 var _covered := false
 var toast_label: Label
 var medal_label: Label
+var counter_label: Label
+var duel_box: Control
+var duel_fill: ColorRect
+var duel_label: Label
 var verb_panel: Control
 var choice_box: VBoxContainer
 var verb_buttons := {}
@@ -84,6 +88,8 @@ func _ready() -> void:
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
 	_refresh_ui()
+	if Game.meta.has("notice") and not Game.fast:
+		await _show_notice(Game.meta["notice"])
 	if Game.meta.has("title_screen") and not Game.fast:
 		_show_start_screen()
 	else:
@@ -144,6 +150,31 @@ func _build_ui() -> void:
 
 	medal_label = _make_label(root, Vector2(332, UI_TOP + 2), Vector2(300, 20), Color("#a08a50"), 11)
 	medal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	counter_label = _make_label(root, Vector2(8, UI_TOP + 2), Vector2(300, 20), Color("#a08a50"), 11)
+
+	# Publikumsbarometer im Duell, oben über dem Raum.
+	duel_box = Control.new()
+	duel_box.position = Vector2(170, 6)
+	duel_box.size = Vector2(300, 26)
+	duel_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	duel_box.visible = false
+	root.add_child(duel_box)
+	var duel_bg := ColorRect.new()
+	duel_bg.color = Color("#3a1010")
+	duel_bg.position = Vector2(0, 14)
+	duel_bg.size = Vector2(300, 10)
+	duel_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	duel_box.add_child(duel_bg)
+	duel_fill = ColorRect.new()
+	duel_fill.color = Color("#3fbf5f")
+	duel_fill.position = Vector2(0, 14)
+	duel_fill.size = Vector2(150, 10)
+	duel_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	duel_box.add_child(duel_fill)
+	duel_label = _make_label(duel_box, Vector2.ZERO, Vector2(300, 14), Color.WHITE, 11)
+	duel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	duel_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	duel_label.add_theme_constant_override("outline_size", 4)
 
 	choice_box = VBoxContainer.new()
 	choice_box.position = Vector2(8, UI_TOP + 4)
@@ -335,7 +366,16 @@ func _refresh_ui() -> void:
 	inv_up.disabled = inv_scroll == 0
 	inv_down.disabled = inv_scroll >= max_scroll
 	var total: int = Game.meta.get("medals", {}).size()
-	medal_label.text = "%s: %d/%d" % [Game.meta.get("medal_label", {}).get("many", "Medaillen"), Game.medals.size(), total]
+	medal_label.text = "%s: %d/%d" % [Game.meta.get("medal_label", {}).get("many", "Medaillen"), Game.medals.size(), total] if total > 0 else ""
+	var parts := []
+	var defs: Dictionary = Game.meta.get("counters", {})
+	for c in defs:
+		if defs[c].has("hud") and Game.check(defs[c]["hud"]):
+			var t := "%s: %d" % [defs[c].get("label", c), Game.counter(c)]
+			if defs[c].has("goal"):
+				t += "/%d" % int(defs[c]["goal"])
+			parts.append(t)
+	counter_label.text = "   ".join(parts)
 	_refresh_verbs()
 
 
@@ -724,3 +764,32 @@ func choose(texts: Array) -> int:
 	verb_panel.visible = true
 	sentence_label.visible = true
 	return index
+
+
+## Publikumsbarometer anzeigen (0 bis 100) oder mit value < 0 ausblenden.
+func duel_meter(label: String, value: int) -> void:
+	duel_box.visible = value >= 0
+	if value < 0:
+		return
+	duel_label.text = label
+	duel_fill.size.x = 3.0 * value
+	duel_fill.color = Color("#3fbf5f") if value >= 50 else Color("#d08030")
+
+
+## Hinweis vor dem Spielstart (game.json "notice"), weiter mit Klick.
+func _show_notice(notice: Dictionary) -> void:
+	Game.busy = true
+	title_label.text = "%s\n\n%s\n\n%s" % [notice.get("title", ""), notice.get("text", ""), notice.get("continue", "Weiter mit Klick")]
+	title_label.add_theme_font_size_override("font_size", 16)
+	title_pic.texture = null
+	_place_title(title_label, "")
+	title_bg.modulate.a = 1.0
+	title_label.modulate.a = 1.0
+	title_bg.visible = true
+	_skip = false
+	while not _skip:
+		await get_tree().process_frame
+	_skip = false
+	title_bg.visible = false
+	title_label.add_theme_font_size_override("font_size", 26)
+	Game.busy = false
