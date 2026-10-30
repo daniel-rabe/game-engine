@@ -121,6 +121,9 @@ for rid, room in rooms.items():
         x, y, w, hh = h["rect"]
         if x < 0 or y < 0 or x + w > 320 or y + hh > 144:
             errors.append(f"{where}: Rechteck ragt aus dem Raum (320x144)")
+        fx, fy, fw, fh = room.get("frame", [0, 0, 320, 144])
+        if x < fx or y < fy or x + w > fx + fw or y + hh > fy + fh:
+            errors.append(f"{where}: Rechteck ragt aus dem sichtbaren Ausschnitt (frame)")
         check_cond(h.get("if"), where)
         check_cond(h.get("exit_if"), where)
         if h.get("speaker") and h["speaker"] not in speakers:

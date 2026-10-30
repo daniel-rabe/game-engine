@@ -91,6 +91,12 @@ die Spielfigur ist an y = 104 (hinten) 0,8-mal und an y = 138 (vorn) 1,05-mal so
 ihre Laufgeschwindigkeit skaliert mit, damit die Schritte zur Größe passen. `bg` und `decor` gelten nur für den
 Platzhalter. `on_enter` läuft bei jedem Betreten.
 
+Optional `"frame": [0, 40, 320, 64]`: nur dieser Ausschnitt des Raums ist zu sehen, der Rest bleibt schwarz
+(z. B. ein enger Schacht). Der Hintergrund füllt dann nur den Ausschnitt (4-fach: 1280 × 256), Erzähltext und
+Sätze von Figuren ohne Platz im Raum stehen im Schwarz darüber. Optional `"pose": "crawl"`: die Spielfigur nimmt
+in diesem Raum statt `walk_N`/`idle_N` die Bilder `crawl_N.png` (Fortbewegung) und `crawl_idle_N.png` (sonst
+`crawl_0.png`) im Stand, Bildraten unter `art.actors.<id>.poses.crawl` (`fps`, `idle_fps`, Standard 8).
+
 ### Hotspots
 
 | Feld | Bedeutung |

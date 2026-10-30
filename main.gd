@@ -624,6 +624,9 @@ func say(who: String, text: String, mood := "") -> void:
 	speech_label.add_theme_color_override("font_color", color)
 	speech_label.text = text
 	var anchor := Vector2(320, 110)
+	if room_view.frame().position.y > 0:
+		# schmaler Ausschnitt (Raumfeld "frame"): Erzähltext steht im Schwarz darüber
+		anchor.y = room_view.frame().position.y * ROOM_SCALE - 6
 	if who == Game.player_id:
 		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
 	elif who == Game.companion_id and room_view.show_companion:

@@ -81,9 +81,16 @@ func _is_hires(tex: Texture2D, size: Vector2) -> bool:
 	return tex.get_width() > size.x or tex.get_height() > size.y
 
 
+## Sichtbarer Ausschnitt des Raums: Raumfeld "frame" [x, y, w, h], sonst der ganze Raum. Der Hintergrund
+## füllt den Ausschnitt, außerhalb bleibt es schwarz (z. B. ein schmaler Schacht, darüber Erzähltext).
+func frame() -> Rect2:
+	var f: Array = room.get("frame", [0, 0, ROOM_SIZE.x, ROOM_SIZE.y])
+	return Rect2(f[0], f[1], f[2], f[3])
+
+
 func _draw_hires() -> void:
-	if _bg and _is_hires(_bg, ROOM_SIZE):
-		_hires.draw_texture_rect(_bg, Rect2(Vector2.ZERO, ROOM_SIZE), false)
+	if _bg and _is_hires(_bg, frame().size):
+		_hires.draw_texture_rect(_bg, frame(), false)
 	elif not _bg:
 		# auf dieser Ebene, sonst verdecken Platzhalterraum und -objekte die gemalten Figuren und Objekte
 		_draw_placeholder_room(_hires)
@@ -116,14 +123,21 @@ func _draw_hires() -> void:
 
 
 func _draw() -> void:
-	if _bg and not _is_hires(_bg, ROOM_SIZE):
-		draw_texture(_bg, Vector2.ZERO)
+	if _bg and not _is_hires(_bg, frame().size):
+		draw_texture(_bg, frame().position)
 	if _bg:
 		for h in Game.visible_hotspots():
 			_draw_hotspot(self, h)
 	_draw_player()
 	if show_companion:
 		_draw_companion()
+	# außerhalb des Ausschnitts schwarz, auch über Figuren, die über den Rand ragen
+	var f := frame()
+	if f != Rect2(Vector2.ZERO, ROOM_SIZE):
+		draw_rect(Rect2(0, 0, ROOM_SIZE.x, f.position.y), Color.BLACK)
+		draw_rect(Rect2(0, f.end.y, ROOM_SIZE.x, ROOM_SIZE.y - f.end.y), Color.BLACK)
+		draw_rect(Rect2(0, f.position.y, f.position.x, f.size.y), Color.BLACK)
+		draw_rect(Rect2(f.end.x, f.position.y, ROOM_SIZE.x - f.end.x, f.size.y), Color.BLACK)
 
 
 func _draw_placeholder_room(c: CanvasItem) -> void:
@@ -303,8 +317,20 @@ func companion_height() -> float:
 	return tex.get_height() / (HIRES_SCALE if hires else 1.0) * (depth_scale(player_pos.y) if hires else 1.0)
 
 
-## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png).
+## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png). Mit Raumfeld "pose"
+## (z. B. "crawl") stattdessen <pose>_N.png beim Gehen und <pose>_idle_N.png (sonst <pose>_0.png) im Stand.
 func _player_frame() -> Texture2D:
+	var pose: String = room.get("pose", "")
+	if pose != "":
+		var pose_frames := _actor_numbered(Game.player_id, pose)
+		if not pose_frames.is_empty():
+			var pcfg := _actor_cfg(Game.player_id).get("poses", {}).get(pose, {})
+			if player_walking:
+				return pose_frames[int(_time * pcfg.get("fps", 8)) % pose_frames.size()]
+			var pose_idle := _actor_numbered(Game.player_id, pose + "_idle")
+			if pose_idle.is_empty():
+				return pose_frames[0]
+			return pose_idle[int(_time * pcfg.get("idle_fps", 8)) % pose_idle.size()]
 	var frames := _actor_frames(Game.player_id)
 	if frames.is_empty():
 		return null
