@@ -317,6 +317,16 @@ func companion_height() -> float:
 	return tex.get_height() / (HIRES_SCALE if hires else 1.0) * (depth_scale(player_pos.y) if hires else 1.0)
 
 
+## Laufgeschwindigkeit der Spielfigur im aktuellen Raum: art.actors.<id>.poses.<pose>.speed (Raumeinheiten/s)
+## bei Raumfeld "pose", sonst fallback.
+func pose_speed(fallback: float) -> float:
+	var pose: String = room.get("pose", "")
+	if pose == "":
+		return fallback
+	var pcfg: Dictionary = _actor_cfg(Game.player_id).get("poses", {}).get(pose, {})
+	return pcfg.get("speed", fallback)
+
+
 ## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png). Mit Raumfeld "pose"
 ## (z. B. "crawl") stattdessen <pose>_N.png beim Gehen und <pose>_idle_N.png (sonst <pose>_0.png) im Stand.
 func _player_frame() -> Texture2D:

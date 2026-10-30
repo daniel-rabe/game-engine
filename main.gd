@@ -564,7 +564,7 @@ func _toast(text: String) -> void:
 func _process(delta: float) -> void:
 	if walk_target != null:
 		# weiter hinten kleiner und langsamer, damit die Schritte zur Größe passen
-		var stride: float = WALK_SPEED * delta * room_view.depth_scale(Game.player_pos.y)
+		var stride: float = room_view.pose_speed(WALK_SPEED) * delta * room_view.depth_scale(Game.player_pos.y)
 		var d: Vector2 = walk_target - Game.player_pos
 		if abs(d.x) > 0.5:
 			room_view.player_flip = d.x < 0

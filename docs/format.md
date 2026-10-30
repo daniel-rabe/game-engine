@@ -104,7 +104,7 @@ Optional `"frame": [0, 40, 320, 64]`: nur dieser Ausschnitt des Raums ist zu seh
 (z. B. ein enger Schacht). Der Hintergrund füllt dann nur den Ausschnitt (4-fach: 1280 × 256), Erzähltext und
 Sätze von Figuren ohne Platz im Raum stehen im Schwarz darüber. Optional `"pose": "crawl"`: die Spielfigur nimmt
 in diesem Raum statt `walk_N`/`idle_N` die Bilder `crawl_N.png` (Fortbewegung) und `crawl_idle_N.png` (sonst
-`crawl_0.png`) im Stand, Bildraten unter `art.actors.<id>.poses.crawl` (`fps`, `idle_fps`, Standard 8).
+`crawl_0.png`) im Stand, Bildraten und Tempo unter `art.actors.<id>.poses.crawl` (`fps`, `idle_fps`, Standard 8; `speed` in Raumeinheiten/s, Standard wie Gehen 70).
 
 ### Hotspots
 
