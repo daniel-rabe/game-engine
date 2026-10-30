@@ -42,6 +42,10 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `menu` (optional): Bild hinter dem Spielmenü, z. B. `{"panel": "res://art/ui/menu_panel.png", "panel_margin": 116}`.
   Das Bild wird auf die Menübreite verkleinert; der Rand (`panel_margin` Bildpunkte) bleibt, nur die Mitte streckt sich.
   `fonts.menu` ersetzt die Menüschrift.
+- `cursor` (optional): eigener Mauszeiger, z. B. `{"normal": "res://art/ui/cursor.png", "hover": "res://art/ui/cursor_hover.png",
+  "hotspot": [28, 25], "size": 16}`. `hover` erscheint, solange die Maus über einem Objekt im Raum oder im Inventar steht
+  (nicht während Ria handelt). `hotspot` ist der Klickpunkt in Bildpunkten, `size` die Zeigerhöhe in Spielpixeln (640x400);
+  der Zeiger wächst mit dem Fenster. Beide Bilder gleich groß anlegen. Auf Touchgeräten bleibt er aus.
 - `music` (optional): Hintergrundmusik, z. B. `{"default": "titel", "acts": {"1": "schiff"}, "volume_db": -8,
   "fade": 2.5, "track_db": {"schiff": -1}, "dir": "res://music"}`. Jeder Raum spielt sein Feld `"music"`,
   sonst das Stück seines Akts (`acts`, Schlüssel ist das Raumfeld `act`), sonst `default`. Stücke sind

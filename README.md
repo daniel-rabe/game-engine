@@ -16,6 +16,7 @@ Platzhalter, sodass jedes Spiel ohne eine einzige PNG-Datei durchspielbar ist.
 | --- | --- |
 | `game.gd` | Autoload `Game`: Spielzustand, Daten laden, Skript-Interpreter, Speichern/Laden |
 | `main.gd`, `main.tscn` | MI2-Oberfläche: neun Verben, Satzzeile, Inventar, Sprechtexte, Dialogauswahl |
+| `cursor.gd` | Eigener Mauszeiger mit zweitem Bild über Objekten, wächst mit dem Fenster |
 | `menu.gd` | Spielmenü (Esc): Weiterspielen, Speichern und Laden auf mehreren Plätzen, Beenden mit Abfrage |
 | `room_view.gd` | Raumdarstellung mit Grafiken nach Dateikonvention oder Platzhaltern |
 | `tests/walkthrough.gd` | Spielt `res://tests/walkthrough.json` des Spiels in der echten Engine durch |
