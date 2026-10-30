@@ -624,9 +624,6 @@ func say(who: String, text: String, mood := "") -> void:
 	speech_label.add_theme_color_override("font_color", color)
 	speech_label.text = text
 	var anchor := Vector2(320, 110)
-	if room_view.frame().position.y > 0:
-		# schmaler Ausschnitt (Raumfeld "frame"): Erzähltext steht im Schwarz darüber
-		anchor.y = room_view.frame().position.y * ROOM_SCALE - 6
 	if who == Game.player_id:
 		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
 	elif who == Game.companion_id and room_view.show_companion:
@@ -638,9 +635,15 @@ func say(who: String, text: String, mood := "") -> void:
 				var r: Array = h["rect"]
 				anchor = Vector2(r[0] + r[2] / 2.0, r[1] - 4) * ROOM_SCALE
 				break
+	var top := 0.0
+	if room_view.frame().position.y > 0:
+		# schmaler Ausschnitt (Raumfeld "frame"): alle Sätze stehen im Schwarz darüber. Das Textfeld ist unten
+		# ausgerichtet und höher als der Text, darf also oben aus dem Bild ragen
+		anchor.y = room_view.frame().position.y * ROOM_SCALE - 6
+		top = -speech_label.size.y
 	speech_label.position = Vector2(
 		clampf(anchor.x - speech_label.size.x / 2, 4, 636 - speech_label.size.x),
-		max(anchor.y - speech_label.size.y, 0))
+		max(anchor.y - speech_label.size.y, top))
 	_talking = who
 	_talk_text = text
 	_talk_mood = mood

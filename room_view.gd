@@ -324,7 +324,7 @@ func _player_frame() -> Texture2D:
 	if pose != "":
 		var pose_frames := _actor_numbered(Game.player_id, pose)
 		if not pose_frames.is_empty():
-			var pcfg := _actor_cfg(Game.player_id).get("poses", {}).get(pose, {})
+			var pcfg: Dictionary = _actor_cfg(Game.player_id).get("poses", {}).get(pose, {})
 			if player_walking:
 				return pose_frames[int(_time * pcfg.get("fps", 8)) % pose_frames.size()]
 			var pose_idle := _actor_numbered(Game.player_id, pose + "_idle")
