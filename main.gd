@@ -78,6 +78,9 @@ func _ready() -> void:
 	add_child(music)
 	voice = preload("res://addons/game_engine/voice.gd").new()
 	add_child(voice)
+	var cursor = preload("res://addons/game_engine/cursor.gd").new()
+	cursor.view = self
+	add_child(cursor)
 	_build_ui()
 	Game.state_changed.connect(_refresh_ui)
 	_refresh_ui()
