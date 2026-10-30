@@ -16,6 +16,8 @@ signal choice_made(index: int)
 const ROOM_SCALE := 2.0
 const UI_TOP := 288
 const WALK_SPEED := 70.0
+const WALK_EASE_START := 0.45  # Anteil des Tempos im ersten Moment
+const WALK_EASE_TIME := 0.18  # Sekunden bis zum vollen Tempo
 const VERB_GRID := [["give", "take", "use"], ["open", "look", "push"], ["close", "talk", "pull"]]
 const INV_COLUMNS := 3
 const INV_ROWS := 2
@@ -54,6 +56,7 @@ var hover := ""
 var inv_scroll := 0
 
 var walk_target = null
+var _walk_time := 0.0  # Sekunden seit dem Loslaufen
 var companion_pos := Vector2.ZERO
 ## Der Begleiter schwebt so hoch über dem Boden und so weit hinter der Spielfigur (Raumeinheiten, vorn im Raum).
 const COMPANION_HOVER := 36.0
@@ -564,16 +567,25 @@ func _toast(text: String) -> void:
 func _process(delta: float) -> void:
 	if walk_target != null:
 		# weiter hinten kleiner und langsamer, damit die Schritte zur Größe passen
-		var stride: float = room_view.pose_speed(WALK_SPEED) * delta * room_view.depth_scale(Game.player_pos.y)
+		# beim Loslaufen kurz beschleunigen statt sofort mit vollem Tempo
+		_walk_time += delta
+		var ease := clampf(WALK_EASE_START + _walk_time / WALK_EASE_TIME, WALK_EASE_START, 1.0)
+		var depth: float = room_view.depth_scale(Game.player_pos.y)
+		var stride: float = room_view.pose_speed(WALK_SPEED) * delta * depth * ease
 		var d: Vector2 = walk_target - Game.player_pos
 		if abs(d.x) > 0.5:
 			room_view.player_flip = d.x < 0
 		if d.length() <= stride:
+			room_view.walk_distance += d.length() / depth
 			Game.player_pos = walk_target
 			walk_target = null
 			arrived.emit()
 		else:
+			room_view.walk_distance += stride / depth
 			Game.player_pos += d.normalized() * stride
+	else:
+		_walk_time = 0.0
+		room_view.walk_distance = 0.0
 	var companion_home := _companion_home()
 	var before := companion_pos
 	companion_pos = companion_pos.lerp(companion_home, clampf(delta * 2.5, 0.0, 1.0))

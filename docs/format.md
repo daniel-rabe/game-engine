@@ -68,7 +68,10 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
   Das Bild füllt den ganzen Bildschirm (640×400, gern doppelt so groß gemalt), `title` steht als echte Schrift darüber.
   Nach „Neues Spiel“ bleibt der Bildschirm schwarz bis zur ersten Tafel, zum ersten Satz oder Gang.
 - `art`: Stil, Negativ-Prompt und Figuren für `tools/asset_manifest.py`. Je Figur außerdem `walk_fps`
-  (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Sind die Bilder
+  (Laufbilder pro Sekunde, Standard 8) und `idle_fps` (für `idle_0.png` …, Standard 8). Mit `walk_cycle`
+  (Raumeinheiten pro Doppelschritt bei Tiefenfaktor 1) folgen die Laufbilder statt der Zeit dem zurückgelegten
+  Weg: Die Füße rutschen bei keiner Tiefe, jeder Gang beginnt mit `walk_0.png`, `walk_fps` gilt dann nicht.
+  `walk_speed` setzt die Laufgeschwindigkeit (Raumeinheiten/s, Standard 70). Beim Loslaufen beschleunigt die Spielfigur in knapp 0,1 s auf volles Tempo. Sind die Bilder
   höher als `size`, gelten sie als 4-fach gemalt und werden geviertelt und geglättet gezeichnet.
   `actions` beschreibt Aktionsbilder: `{"pickup": {"fps": 15, "grab": 7}}`. `pickup` spielt die Engine
   automatisch bei „Nimm“, wenn das Verb einen Gegenstand gibt; das Skript läuft ab Bild `grab` weiter.

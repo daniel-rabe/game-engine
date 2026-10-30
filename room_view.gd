@@ -24,6 +24,8 @@ const COMPANION_COLORS := {"body": "#9aa6b2", "light": "#ff5050", "eye_bg": "#0a
 var room: Dictionary = {}
 var player_pos := Vector2.ZERO
 var player_walking := false
+## zurückgelegter Weg seit dem Loslaufen, durch die Tiefenskalierung geteilt (Raumeinheiten), aus main.gd
+var walk_distance := 0.0
 var player_flip := false
 var player_talking := false
 ## Mundform beim Sprechen ("" = spricht nicht) und Stimmung ("" = ruhig, sonst z. B. "happy"), aus main.gd
@@ -318,13 +320,14 @@ func companion_height() -> float:
 
 
 ## Laufgeschwindigkeit der Spielfigur im aktuellen Raum: art.actors.<id>.poses.<pose>.speed (Raumeinheiten/s)
-## bei Raumfeld "pose", sonst fallback.
+## bei Raumfeld "pose", sonst art.actors.<id>.walk_speed, sonst fallback.
 func pose_speed(fallback: float) -> float:
+	var cfg := _actor_cfg(Game.player_id)
+	var walk_speed: float = cfg.get("walk_speed", fallback)
 	var pose: String = room.get("pose", "")
 	if pose == "":
-		return fallback
-	var pcfg: Dictionary = _actor_cfg(Game.player_id).get("poses", {}).get(pose, {})
-	return pcfg.get("speed", fallback)
+		return walk_speed
+	return cfg.get("poses", {}).get(pose, {}).get("speed", walk_speed)
 
 
 ## Aktuelles Bild der Spielfigur: Laufbilder beim Gehen, sonst idle_N (oder stand.png). Mit Raumfeld "pose"
@@ -352,12 +355,22 @@ func _player_frame() -> Texture2D:
 		_action = []
 	var walk: Array = frames.slice(1)
 	if player_walking and not walk.is_empty():
-		return walk[int(_time * cfg.get("walk_fps", 8)) % walk.size()]
+		return walk[_walk_index(cfg, walk.size())]
 	var idle := _actor_idle(Game.player_id)
 	if not idle.is_empty():
 		var i := int(_time * cfg.get("idle_fps", 8))
 		return _talk_frame(Game.player_id, player_mood, player_mouth, i, idle[i % idle.size()])
 	return frames[0]
+
+
+## Laufbild Nummer: mit "walk_cycle" (Raumeinheiten pro Doppelschritt bei Größe 1) folgt es dem Weg, die
+## Füße rutschen dann bei keiner Tiefe und keinem Tempo, und jeder Weg beginnt mit dem ersten Laufbild;
+## sonst nach der Zeit mit "walk_fps".
+func _walk_index(cfg: Dictionary, count: int) -> int:
+	var cycle: float = cfg.get("walk_cycle", 0.0)
+	if cycle > 0.0:
+		return int(walk_distance / cycle * count) % count
+	return int(_time * cfg.get("walk_fps", 8)) % count
 
 
 ## Ersatz, wenn eine Figur eine Mundform nicht hat (zuletzt die geschlossene, also das Ruhebild).
