@@ -1,7 +1,7 @@
 extends SceneTree
 ## Prüft das Spielmenü (Esc) in der echten Oberfläche: Esc bricht erst einen
 ## halben Satz ab, dann öffnet es das Menü; Speichern auf Platz 1, Laden,
-## Beenden-Abfrage. Spielstände landen in user://test_saves, nicht bei den echten.
+## Lautstärkeregler, Beenden-Abfrage. Spielstände landen in user://test_saves, nicht bei den echten.
 ## Braucht eine Grafikausgabe; mit --shots=<ordner> entstehen Bildschirmfotos.
 ##
 ##   godot --path . -s res://addons/game_engine/tests/menu_test.gd -- --steps=4 --shots=user://menu
@@ -27,6 +27,9 @@ func _run() -> void:
 	game = root.get_node("Game")
 	game.save_dir = "user://test_saves"
 	DirAccess.make_dir_recursive_absolute(game.save_dir)
+	var real_volume: Dictionary = game.volume.duplicate()
+	game.settings_path = "user://test_saves/einstellungen.cfg"
+	DirAccess.remove_absolute(game.settings_path)
 	for slot in game.SAVE_SLOTS:
 		DirAccess.remove_absolute(game.save_path(slot))
 	game.fast = true
@@ -90,6 +93,29 @@ func _run() -> void:
 	await _frames(5)
 	_expect(game.inventory == inv and not game.flags.has("menu_test") and game.room_id == room, "Laden stellt Zustand her")
 
+	# Optionen: Regler stellt den Bus sofort, Zurück speichert
+	main.open_menu()
+	_entry("menu_options").pressed.emit()
+	await _frames(5)
+	_expect(menu._page == "options", "Optionen öffnen")
+	var sliders: Array = menu.find_children("*", "HSlider", true, false)
+	_expect(sliders.size() == game.VOLUME_BUSES.size(), "ein Regler je Bus")
+	sliders[0].value = 0.5
+	var music_bus := AudioServer.get_bus_index("Music")
+	_expect(is_equal_approx(AudioServer.get_bus_volume_db(music_bus), linear_to_db(0.5)), "Musikregler stellt den Bus")
+	sliders[1].value = 0.0
+	_expect(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("Voice")) <= -79.0, "Sprache auf 0 ist stumm")
+	await _shot("5_optionen")
+	_key(KEY_ESCAPE)
+	await _frames(2)
+	_expect(menu._page == "main", "Esc führt von den Optionen zurück")
+	var cfg := ConfigFile.new()
+	_expect(cfg.load(game.settings_path) == OK and is_equal_approx(cfg.get_value("volume", "Music", 1.0), 0.5), "Lautstärke gespeichert")
+	game.volume.clear()
+	game.load_settings()
+	_expect(is_equal_approx(game.volume["Music"], 0.5) and game.volume["Voice"] == 0.0, "Lautstärke wieder geladen")
+	menu.close()
+
 	# Beenden fragt nach
 	main.open_menu()
 	_entry("menu_quit").pressed.emit()
@@ -102,6 +128,9 @@ func _run() -> void:
 
 	for slot in game.SAVE_SLOTS:
 		DirAccess.remove_absolute(game.save_path(slot))
+	DirAccess.remove_absolute(game.settings_path)
+	for bus in real_volume:
+		game.set_volume(bus, real_volume[bus], false)
 	print("Menütest: %s" % ("OK" if errors == 0 else "%d Fehler" % errors))
 	quit(1 if errors else 0)
 

@@ -284,7 +284,8 @@ func _show_start_screen() -> void:
 	list.alignment = BoxContainer.ALIGNMENT_END
 	list.add_theme_constant_override("separation", 0)
 	bg.add_child(list)
-	for e in [["menu_new", _start_new], ["menu_continue", _start_continue], ["menu_quit", get_tree().quit]]:
+	for e in [["menu_new", _start_new], ["menu_continue", _start_continue], ["menu_options", menu.open.bind("options")],
+			["menu_quit", get_tree().quit]]:
 		var b: Button = Menu.make_entry(Game.text(e[0]))
 		b.disabled = e[0] == "menu_continue" and not Game.has_save()
 		b.pressed.connect(e[1])

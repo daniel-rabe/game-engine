@@ -18,9 +18,7 @@ var _tween: Tween
 
 
 func _ready() -> void:
-	if AudioServer.get_bus_index(BUS) < 0:
-		AudioServer.add_bus()
-		AudioServer.set_bus_name(AudioServer.bus_count - 1, BUS)
+	Game.audio_bus(BUS)
 	for i in 2:
 		var p := AudioStreamPlayer.new()
 		p.bus = BUS
@@ -46,7 +44,7 @@ func room_entered(r: Dictionary) -> void:
 
 
 func toggle_mute() -> bool:
-	var i := AudioServer.get_bus_index(BUS)
+	var i := Game.audio_bus(BUS)
 	AudioServer.set_bus_mute(i, not AudioServer.is_bus_mute(i))
 	return not AudioServer.is_bus_mute(i)
 

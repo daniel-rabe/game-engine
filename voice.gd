@@ -5,27 +5,33 @@ extends Node
 ## "duck_db" (so viel leiser wird die Musik, Standard -8), "duck_fade"}.
 ## Die Aufnahme einer Zeile liegt als <dir>/<sprecher>/<schlüssel>.ogg; der Schlüssel sind
 ## die ersten 12 Zeichen des MD5 des Spieltexts. Ändert sich der Text, fehlt die Aufnahme und
-## die Zeile bleibt stumm. Läuft im Bus "Voice"; die Musik (Bus "Music") wird dabei leiser.
+## die Zeile bleibt stumm. Läuft im Bus "Voice"; die Musik (Bus "Music") wird dabei leiser,
+## über einen eigenen Verstärker-Effekt, damit der Lautstärkeregler des Busses unberührt bleibt.
 
 const BUS := "Voice"
 const MUSIC_BUS := "Music"
 
 var _player: AudioStreamPlayer
 var _tween: Tween
-var _music_db := 0.0
+var _duck_fx: AudioEffectAmplify
 var _ducked := false
 
 
 func _ready() -> void:
-	if AudioServer.get_bus_index(BUS) < 0:
-		AudioServer.add_bus()
-		AudioServer.set_bus_name(AudioServer.bus_count - 1, BUS)
 	_player = AudioStreamPlayer.new()
 	_player.bus = BUS
+	Game.audio_bus(BUS)
 	add_child(_player)
+	_duck_fx = AudioEffectAmplify.new()
+	AudioServer.add_bus_effect(Game.audio_bus(MUSIC_BUS), _duck_fx)
+
+
+func _exit_tree() -> void:
 	var m := AudioServer.get_bus_index(MUSIC_BUS)
-	if m >= 0:
-		_music_db = AudioServer.get_bus_volume_db(m)
+	for i in AudioServer.get_bus_effect_count(m):
+		if AudioServer.get_bus_effect(m, i) == _duck_fx:
+			AudioServer.remove_bus_effect(m, i)
+			break
 
 
 func _settings() -> Dictionary:
@@ -61,16 +67,12 @@ func stop() -> void:
 
 
 func _duck(on: bool) -> void:
-	var m := AudioServer.get_bus_index(MUSIC_BUS)
-	if m < 0:
-		return
 	var cfg := _settings()
-	var target: float = _music_db + (cfg.get("duck_db", -8.0) if on else 0.0)
+	var target: float = cfg.get("duck_db", -8.0) if on else 0.0
 	_ducked = on
 	if _tween:
 		_tween.kill()
 	_tween = create_tween()
 	if not on:
 		_tween.tween_interval(0.3)
-	_tween.tween_method(func(v: float): AudioServer.set_bus_volume_db(m, v),
-			AudioServer.get_bus_volume_db(m), target, cfg.get("duck_fade", 0.4))
+	_tween.tween_property(_duck_fx, "volume_db", target, cfg.get("duck_fade", 0.4))

@@ -41,7 +41,10 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `texts`: ersetzt Standardsätze der Engine. Schlüssel: die Verben (`give`, `open`, `close`, `take`, `talk`,
   `use`, `push`, `pull`, `look`), `other`, `already_have`, `exit_blocked`, `saved`, `save_failed`, `loaded`, `load_failed`, `music_on`, `music_off`
   und die Texte des Spielmenüs (Esc): `menu_title`, `menu_resume`, `menu_save`, `menu_load`, `menu_quit`, `menu_back`,
-  `menu_quit_confirm`, `menu_yes`, `menu_no`, `menu_overwrite`, `slot_empty`, `slot_quick`.
+  `menu_quit_confirm`, `menu_yes`, `menu_no`, `menu_overwrite`, `slot_empty`, `slot_quick`,
+  `menu_options` und die Reglernamen `volume_Music`, `volume_Voice`, `volume_SFX`.
+  Die Seite „Optionen“ (im Spielmenü und auf dem Startbild) stellt die Lautstärke der Busse „Music“, „Voice“
+  und „SFX“ von 0 bis 100 % ein (100 % = wie abgemischt); sie gilt sofort und steht in `user://einstellungen.cfg`.
 - `menu` (optional): Bild hinter dem Spielmenü, z. B. `{"panel": "res://art/ui/menu_panel.png", "panel_margin": 116}`.
   Das Bild wird auf die Menübreite verkleinert; der Rand (`panel_margin` Bildpunkte) bleibt, nur die Mitte streckt sich.
   `fonts.menu` ersetzt die Menüschrift.
@@ -58,12 +61,13 @@ Ein Spiel besteht nur aus JSON-Dateien. Die Engine liest sie beim Start aus `res
 - `voice` (optional): Sprachausgabe für `say`, z. B. `{"speakers": ["text"], "dir": "res://voice",
   "volume_db": 0, "duck_db": -8, "duck_fade": 0.4}`. Für jede Zeile eines Sprechers aus `speakers` spielt
   die Engine `<dir>/<sprecher>/<schlüssel>.ogg` (Schlüssel: die ersten 12 Zeichen des MD5 des Texts), lässt
-  den Text so lange stehen, wie die Aufnahme dauert, und senkt die Musik um `duck_db`. Überspringen stoppt
+  den Text so lange stehen, wie die Aufnahme dauert, und senkt die Musik um `duck_db`
+  (über einen Verstärker-Effekt auf dem Bus „Music“, der Lautstärkeregler bleibt unberührt). Überspringen stoppt
   den Ton. Fehlt die Datei (etwa nach einer Textänderung), bleibt die Zeile stumm (Bus „Voice“).
 - `counters`: Zähler mit Anzeigename, optionalem Ziel und `hud` (Bedingung, solange der Zähler unten links steht).
 - `notice`: Hinweis vor dem Spielstart (z. B. Content-Hinweis), weiter per Klick.
 - `intro`: Befehle beim Spielstart.
-- `title_screen` (optional): Startbild mit Menü (Neues Spiel, Fortsetzen, Beenden) vor dem Intro:
+- `title_screen` (optional): Startbild mit Menü (Neues Spiel, Fortsetzen, Optionen, Beenden) vor dem Intro:
   `{"image": "res://art/screens/titel.png", "music": "titel", "subtitle": "…", "text_pos": "top", "menu_pos": [220, 290]}`.
   Das Bild füllt den ganzen Bildschirm (640×400, gern doppelt so groß gemalt), `title` steht als echte Schrift darüber.
   Nach „Neues Spiel“ bleibt der Bildschirm schwarz bis zur ersten Tafel, zum ersten Satz oder Gang.

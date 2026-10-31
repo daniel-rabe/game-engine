@@ -66,9 +66,7 @@ func _ready() -> void:
 	_hires.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_hires.draw.connect(_draw_hires)
 	add_child(_hires)
-	if AudioServer.get_bus_index(SFX_BUS) < 0:
-		AudioServer.add_bus()
-		AudioServer.set_bus_name(AudioServer.bus_count - 1, SFX_BUS)
+	Game.audio_bus(SFX_BUS)
 	_sfx = AudioStreamPlayer.new()
 	_sfx.bus = SFX_BUS
 	add_child(_sfx)

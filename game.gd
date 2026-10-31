@@ -65,7 +65,14 @@ const DEFAULT_TEXTS := {
 	"menu_overwrite": "Diesen Spielstand überschreiben?",
 	"slot_empty": "– frei –",
 	"slot_quick": "Schnellspeicher",
+	"menu_options": "Optionen",
+	"volume_Music": "Musik",
+	"volume_Voice": "Sprache",
+	"volume_SFX": "Geräusche",
 }
+
+## Lautstärkeregler im Optionsmenü: Audio-Busse in Anzeigereihenfolge.
+const VOLUME_BUSES := ["Music", "Voice", "SFX"]
 
 var meta: Dictionary = {}
 var rooms: Dictionary = {}
@@ -99,10 +106,15 @@ var scripted_choices: Array = []
 var test_errors: Array = []
 ## Ordner der Spielstände; Tests nehmen einen eigenen.
 var save_dir: String = "user://"
+## Datei der Einstellungen (Lautstärken); Tests nehmen eine eigene.
+var settings_path: String = "user://einstellungen.cfg"
+## Lautstärke je Bus von 0 bis 1 (1 = wie abgemischt).
+var volume: Dictionary = {}
 
 
 func _ready() -> void:
 	load_data()
+	load_settings()
 
 
 ## F11 oder Alt+Enter schaltet überall (auch Startbild und Menü) zwischen Fenster und Vollbild um.
@@ -116,6 +128,43 @@ func _input(event: InputEvent) -> void:
 func toggle_fullscreen() -> void:
 	var full := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+
+# --- Einstellungen ----------------------------------------------------------
+
+## Liest die Lautstärken und stellt die Busse ein (legt fehlende Busse an).
+func load_settings() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(settings_path)
+	for bus in VOLUME_BUSES:
+		set_volume(bus, cfg.get_value("volume", bus, 1.0), false)
+
+
+func save_settings() -> void:
+	var cfg := ConfigFile.new()
+	for bus in VOLUME_BUSES:
+		cfg.set_value("volume", bus, volume[bus])
+	cfg.save(settings_path)
+
+
+## Lautstärke eines Busses von 0 bis 1; save = gleich in die Einstellungsdatei schreiben.
+func set_volume(bus: String, v: float, save := true) -> void:
+	v = clampf(v, 0.0, 1.0)
+	volume[bus] = v
+	var i := audio_bus(bus)
+	AudioServer.set_bus_volume_db(i, linear_to_db(v) if v > 0.001 else -80.0)
+	if save:
+		save_settings()
+
+
+## Index des Audio-Busses `name`; fehlt er, wird er angelegt.
+static func audio_bus(name: String) -> int:
+	var i := AudioServer.get_bus_index(name)
+	if i < 0:
+		AudioServer.add_bus()
+		i = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, name)
+	return i
 
 
 func load_data() -> void:
