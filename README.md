@@ -21,11 +21,13 @@ Publikumsbarometer und ein Hinweis vor dem Spielstart.
 | `main.gd`, `main.tscn` | MI2-Oberfläche: neun Verben, Satzzeile, Inventar, Sprechtexte, Dialogauswahl |
 | `cursor.gd` | Eigener Mauszeiger mit zweitem Bild über Objekten, wächst mit dem Fenster |
 | `menu.gd` | Spielmenü (Esc): Weiterspielen, Speichern und Laden auf mehreren Plätzen, Beenden mit Abfrage |
-| `room_view.gd` | Raumdarstellung mit Grafiken nach Dateikonvention oder Platzhaltern |
+| `room_view.gd` | Raumdarstellung mit Grafiken nach Dateikonvention oder Platzhaltern, automatische Schiebetüren |
 | `tests/walkthrough.gd` | Spielt `res://tests/walkthrough.json` des Spiels in der echten Engine durch |
 | `tests/screenshot.gd` | Bildschirmfoto nach n Schritten der Komplettlösung |
+| `tests/door_test.gd` | Schiebetüren: verschlossen bleibt zu, Nähe öffnet, Ausgang wartet, Betreten und Laden |
 | `tests/menu_test.gd` | Spielmenü (Esc): Speichern, Laden, Beenden-Abfrage; mit `--shots=<ordner>` Bildschirmfotos |
 | `tools/check_game.py` | Prüft die Daten und simuliert die Komplettlösung ohne Godot |
+| `tools/door_frames.py` | Baut die Bilder einer Schiebetür aus dem Raumbild (zu) und einem Offen-Gemälde |
 | `tools/asset_manifest.py` | Erzeugt `art/manifest.json` und Layoutvorlagen für ComfyUI |
 | `demo/` | Kleines Testspiel für die Engine selbst (`project.godot.demo`) |
 | `docs/format.md` | Das Datenformat |

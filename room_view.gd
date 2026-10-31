@@ -20,6 +20,11 @@ const PLAYER_COLORS := {
 	"skin": "#e8c19a", "hair": "#5a2e14", "accent": "#5fb0c0", "mouth": "#5a1010",
 }
 const COMPANION_COLORS := {"body": "#9aa6b2", "light": "#ff5050", "eye_bg": "#0a1a2a", "eye": "#66ddff"}
+## Schiebetüren (Hotspot-Feld "door"): Abstand der Spielfigur zum Laufpunkt der Tür, ab dem sie aufgeht
+## (Raumeinheiten), und Sekunden von ganz zu bis ganz offen. Vorgaben, änderbar in game.json "doors".
+const DOOR_RADIUS := 40.0
+const DOOR_TIME := 0.45
+const SFX_BUS := "SFX"
 
 var room: Dictionary = {}
 var player_pos := Vector2.ZERO
@@ -49,6 +54,10 @@ var _action_fps := 15.0
 var _bg: Texture2D = null
 var _textures := {}
 var _hires: Node2D = null  # Ebene unter allem anderen für hochaufgelöste Bilder
+## Schiebetüren im aktuellen Raum: Öffnungsgrad 0 (zu) bis 1 (offen) und Richtung (1 auf, -1 zu) je Hotspot-Id
+var _doors := {}
+var _door_dir := {}
+var _sfx: AudioStreamPlayer = null
 
 
 func _ready() -> void:
@@ -57,11 +66,18 @@ func _ready() -> void:
 	_hires.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_hires.draw.connect(_draw_hires)
 	add_child(_hires)
+	if AudioServer.get_bus_index(SFX_BUS) < 0:
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(AudioServer.bus_count - 1, SFX_BUS)
+	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = SFX_BUS
+	add_child(_sfx)
 
 
 func set_room(r: Dictionary) -> void:
 	room = r
 	_bg = texture("res://art/rooms/%s.png" % r.get("id", ""))
+	_reset_doors()
 	queue_redraw()
 
 
@@ -74,6 +90,7 @@ func texture(path: String) -> Texture2D:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_update_doors(delta)
 	queue_redraw()
 	_hires.queue_redraw()
 
@@ -176,6 +193,11 @@ func _rect(h: Dictionary) -> Rect2:
 ## <name>_1.png, ..., ist das Objekt animiert: Schleife mit "anim_fps" Bildern/s (Standard 4), Reihenfolge optional als
 ## "anim_order" (z. B. [0, 0, 0, 1] für ein Blinzeln mit Pause). Spricht die Figur ("speaker"), laufen <name>_talk_0.png, ...
 func _object_texture(h: Dictionary) -> Texture2D:
+	if is_door(h):
+		# Schiebetür: <hotspot>_door_0.png (zu) bis <hotspot>_door_N.png (offen) nach dem Öffnungsgrad
+		var door := _numbered("res://art/objects/%s/%s_door" % [room.get("id", ""), h["id"]])
+		if not door.is_empty():
+			return door[roundi(door_openness(h["id"]) * (door.size() - 1))]
 	var suffix: String = Game.pick_variant(h.get("art_variants", {}), "")
 	var file_name: String = h["id"] + ("_" + suffix if suffix != "" else "")
 	var base := "res://art/objects/%s/%s" % [room.get("id", ""), file_name]
@@ -215,6 +237,13 @@ func _draw_hotspot(ci: CanvasItem, h: Dictionary) -> void:
 	if (_bg and not h.get("sprite", false)) or not h.get("placeholder", true):
 		return
 	var c := Color(Game.pick_variant(h.get("color_variants", {}), h.get("color", "#6a7a8a")))
+	if is_door(h):
+		# Platzhaltertür: dunkle Öffnung, das Türblatt gleitet nach links in die Wand
+		var o := door_openness(h["id"])
+		ci.draw_rect(rect, c.darkened(0.75))
+		ci.draw_rect(Rect2(rect.position, Vector2(rect.size.x * (1.0 - o), rect.size.y)), c)
+		ci.draw_rect(rect, c.lightened(0.5) if h["id"] == hover_id else c.darkened(0.45), false, 1.0)
+		return
 	if h.has("speaker"):
 		_draw_placeholder_person(ci, rect, c, h["id"] == hover_id)
 		return
@@ -490,3 +519,71 @@ func _actor_frames(actor: String) -> Array:
 				i += 1
 		_textures[key] = frames
 	return _textures[key]
+
+
+# --- Schiebetüren -------------------------------------------------------------
+
+## Hotspot mit Feld "door" (true oder {"radius", "time", "if", "sound_open", "sound_close"}).
+func is_door(h: Dictionary) -> bool:
+	return h.has("door") and h["door"] != false
+
+
+## Einstellungen einer Tür: game.json "doors", überschrieben vom Hotspot-Feld "door".
+func _door_cfg(h: Dictionary) -> Dictionary:
+	var cfg: Dictionary = Game.meta.get("doors", {}).duplicate()
+	if h.get("door") is Dictionary:
+		cfg.merge(h["door"], true)
+	return cfg
+
+
+## Die Tür soll offen sein: die Spielfigur steht nah genug an ihrem Laufpunkt, und sie ist nicht
+## verschlossen (Bedingung "if" der Tür, sonst "exit_if" des Ausgangs). Verschlossene Türen bleiben zu.
+func door_wants_open(h: Dictionary) -> bool:
+	var cfg := _door_cfg(h)
+	if not Game.check(h.get("if")) or not Game.check(cfg.get("if", h.get("exit_if"))):
+		return false
+	var radius: float = cfg.get("radius", DOOR_RADIUS)
+	return Game.player_pos.distance_to(Game.hotspot_walk_point(h)) <= radius
+
+
+## Öffnungsgrad 0 (zu) bis 1 (offen).
+func door_openness(id: String) -> float:
+	return _doors.get(id, 0.0)
+
+
+## Beim Betreten (und Laden) stehen Türen schon so, wie sie sein sollen: Kommt die Figur gerade durch eine
+## Tür herein, ist sie offen und schließt sich hinter ihr. Der Zustand folgt nur aus Position und Flags,
+## Spielstände brauchen dafür nichts.
+func _reset_doors() -> void:
+	_doors = {}
+	_door_dir = {}
+	for h in room.get("hotspots", []):
+		if is_door(h):
+			var open := door_wants_open(h)
+			_doors[h["id"]] = 1.0 if open else 0.0
+			_door_dir[h["id"]] = 1 if open else -1
+
+
+func _update_doors(delta: float) -> void:
+	for h in room.get("hotspots", []):
+		if not is_door(h):
+			continue
+		var id: String = h["id"]
+		var dir := 1 if door_wants_open(h) else -1
+		var cfg := _door_cfg(h)
+		if dir != _door_dir.get(id, -1):
+			_door_dir[id] = dir
+			_play_sound(cfg.get("sound_open" if dir > 0 else "sound_close"), cfg.get("volume_db", 0.0))
+		var o: float = _doors.get(id, 0.0)
+		_doors[id] = clampf(o + dir * delta / maxf(cfg.get("time", DOOR_TIME), 0.01), 0.0, 1.0)
+
+
+## Spielt ein Geräusch (Pfad oder Liste von Pfaden, dann ein zufälliges) auf dem Bus "SFX"; fehlt die Datei, bleibt es still.
+func _play_sound(sound, volume_db: float) -> void:
+	if sound is Array:
+		sound = sound.pick_random() if not sound.is_empty() else null
+	if not (sound is String) or not ResourceLoader.exists(sound):
+		return
+	_sfx.stream = load(sound)
+	_sfx.volume_db = volume_db
+	_sfx.play()

@@ -14,3 +14,4 @@ tar -C "$ENGINE" --exclude=.git --exclude=demo -cf - . | tar -C "$WORK/addons/ga
 python3 "$ENGINE/tools/check_game.py" --root="$WORK"
 "$GODOT" --headless --path "$WORK" --import >/dev/null 2>&1 || true
 "$GODOT" --headless --path "$WORK" -s res://addons/game_engine/tests/walkthrough.gd
+"$GODOT" --headless --path "$WORK" -s res://addons/game_engine/tests/door_test.gd

@@ -437,6 +437,8 @@ func _use_exit(h: Dictionary) -> void:
 		await run(h.get("exit_blocked", [["say", player_id, text("exit_blocked")]]))
 		return
 	await run(h.get("exit_do", []))
+	if view:
+		await view.door_opened(h)
 	await change_room(h["exit"], h.get("entry", ""))
 
 

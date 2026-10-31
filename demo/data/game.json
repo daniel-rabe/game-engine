@@ -34,6 +34,10 @@
   "medals": {
     "lampe": "Lampe repariert"
   },
+  "doors": {
+    "radius": 40,
+    "time": 0.45
+  },
   "intro": [
     [
       "title",

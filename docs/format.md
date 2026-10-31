@@ -121,11 +121,29 @@ in diesem Raum statt `walk_N`/`idle_N` die Bilder `crawl_N.png` (Fortbewegung) u
 | `default` | Verb für Rechtsklick (sonst `walk` bei Ausgängen, `look` bei allem anderen) |
 | `exit`, `entry` | Ausgang in einen Raum und dessen Eingang |
 | `exit_if`, `exit_blocked`, `exit_do` | Bedingung für den Ausgang, Befehle wenn gesperrt, Befehle vor dem Raumwechsel |
+| `door` | Automatische Schiebetür: `true` oder `{"radius": 40, "time": 0.45, "if": …, "sound_open": …, "sound_close": …}`, siehe unten |
 | `speaker` | Hotspot ist eine Figur; ihr Text erscheint über ihr |
 | `walk_to` | Punkt, zu dem die Figur läuft (sonst unter dem Rechteck) |
 | `color`, `color_variants` | Platzhalterfarbe, je nach Bedingung |
 | `placeholder` | `false`: nichts zeichnen (nur klickbare Fläche) |
 | `sprite`, `art_variants`, `art_prompt` | Eigene Grafik und Zustände, siehe `docs/assets.md` des Spiels |
+
+### Schiebetüren
+
+Ein Hotspot mit `"door"` ist eine Schiebetür, die von selbst aufgeht, sobald die Spielfigur näher als
+`radius` (Raumeinheiten, Standard 40) an ihrem Laufpunkt (`walk_to`, sonst unter dem Rechteck) steht, und
+wieder zugeht, wenn sie weggeht. `time` ist die Dauer von ganz zu bis ganz offen in Sekunden (Standard 0,45).
+Verschlossene Türen bleiben zu: Die Tür öffnet nur, solange ihre Bedingung `if` gilt, ohne eigene Bedingung
+die des Ausgangs (`exit_if`). Wer durch die Tür geht, wartet am Laufpunkt, bis sie offen ist; im neuen Raum ist die
+Tür, durch die die Figur hereinkommt, schon offen und schließt sich hinter ihr. Der Zustand folgt nur aus
+Position und Flags, Spielstände ändern sich nicht. Verben und Klicks bleiben wie bei jedem Ausgang.
+
+Bilder: `art/objects/<raum>/<hotspot>_door_0.png` (zu) bis `_door_N.png` (ganz offen), so groß wie das
+Hotspot-Rechteck (oder 4-fach). Die Engine zeigt das Bild zum Öffnungsgrad. Ohne Bilder bleibt bei gemaltem
+Hintergrund die gemalte Tür stehen, im Platzhalter gleitet ein Türblatt zur Seite.
+Geräusche: `sound_open` und `sound_close` (Pfad wie `res://sfx/tuer_auf.ogg` oder eine Liste, dann ein
+zufälliges) auf dem Bus „SFX“, Lautstärke `volume_db`. Vorgaben für alle Türen in `game.json` unter
+`"doors"`, das Feld am Hotspot überschreibt sie.
 
 ## Gegenstände
 

@@ -117,6 +117,7 @@
       ],
       "color": "#5a4a3a",
       "exit": "hof",
+      "door": true,
       "entry": "werkstatt",
       "exit_if": "has:schluessel",
       "exit_blocked": [
