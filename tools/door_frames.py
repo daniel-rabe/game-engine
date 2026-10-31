@@ -7,10 +7,12 @@ bis dahinter das offene Bild frei ist.
 
 Aufruf (im Spielordner):
   python3 addons/game_engine/tools/door_frames.py <raum> <hotspot> <offen.png> [--dir=left|right]
-      [--slope=0.0] [--frames=8] [--threshold=40] [--preview=vorschau.gif]
+      [--slope=0.0] [--frames=8] [--threshold=40] [--fill=1] [--preview=vorschau.gif]
 
 --dir: Richtung, in die das Türblatt gleitet (Standard left). --slope: senkrechte Verschiebung je
 waagerechtem Pixel, für Türen an einer schrägen Seitenwand (Kante oben folgt der Perspektive).
+--fill=0: Lücken in der Öffnung nicht zeilenweise füllen, z. B. wenn Schläuche oder Rohre vor dem
+Türblatt hängen und stehen bleiben sollen; das Türblatt gleitet dann hinter ihnen.
 Die Bilder haben die Größe des Hotspot-Rechtecks im Maßstab des Hintergrunds (bei 1280 × 576 also 4-fach).
 """
 import json
@@ -49,7 +51,7 @@ mask = mask.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.MinFilter(9))  #
 mask = mask.filter(ImageFilter.MinFilter(5)).filter(ImageFilter.MaxFilter(5))  # öffnen
 m = np.asarray(mask) > 127
 # je Zeile von der ersten bis zur letzten Öffnungsspalte füllen (die Öffnung ist zusammenhängend)
-for r in range(m.shape[0]):
+for r in range(m.shape[0]) if opts.get("fill", "1") != "0" else []:
     cols = np.flatnonzero(m[r])
     if cols.size:
         m[r, cols[0]:cols[-1] + 1] = True
