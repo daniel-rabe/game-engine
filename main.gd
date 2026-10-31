@@ -642,6 +642,16 @@ func walk_to(p: Vector2) -> void:
 	await arrived
 
 
+## Wartet am Ausgang h, bis seine Schiebetür offen ist (höchstens zwei Sekunden). Ohne Tür, im Test oder
+## bei verschlossener Tür sofort weiter.
+func door_opened(h: Dictionary) -> void:
+	if Game.fast or not room_view.is_door(h) or not room_view.door_wants_open(h):
+		return
+	var limit := Time.get_ticks_msec() + 2000
+	while room_view.door_openness(h["id"]) < 1.0 and Time.get_ticks_msec() < limit:
+		await get_tree().process_frame
+
+
 func walk_to_hotspot(h: Dictionary) -> void:
 	await walk_to(Game.hotspot_walk_point(h))
 	# zum Objekt drehen

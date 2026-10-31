@@ -139,6 +139,16 @@ for did, dlg in dialogs.items():
             check_actions(o.get("do", []), f"dialog {did}.{nid}")
             if o.get("next", "end") != "end" and o["next"] not in dlg:
                 errors.append(f"dialog {did}: Knoten {o['next']} fehlt")
+def check_door_sounds(cfg, where):
+    """Türgeräusche (Pfad oder Liste von Pfaden, res://...) müssen existieren."""
+    for key in ("sound_open", "sound_close"):
+        sounds = cfg.get(key, [])
+        for snd in sounds if isinstance(sounds, list) else [sounds]:
+            if not str(snd).startswith("res://") or not (ROOT / snd[6:]).exists():
+                errors.append(f"{where}: Türgeräusch {snd} fehlt")
+
+
+check_door_sounds(meta.get("doors", {}), "game.json doors")
 for rid, room in rooms.items():
     if room["id"] != rid:
         errors.append(f"Raum {rid}: id passt nicht zum Dateinamen")
@@ -162,6 +172,12 @@ for rid, room in rooms.items():
         check_verbs(h.get("verbs", {}), where)
         check_actions(h.get("exit_blocked", []), where)
         check_actions(h.get("exit_do", []), where)
+        door = h.get("door", False)
+        if isinstance(door, dict):
+            check_cond(door.get("if"), where)
+            check_door_sounds(door, where)
+        elif not isinstance(door, bool):
+            errors.append(f"{where}: door muss true oder ein Objekt sein")
         if "exit" in h:
             target = rooms.get(h["exit"])
             if target is None:
