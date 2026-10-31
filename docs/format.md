@@ -127,7 +127,7 @@ in diesem Raum statt `walk_N`/`idle_N` die Bilder `crawl_N.png` (Fortbewegung) u
 | `exit_if`, `exit_blocked`, `exit_do` | Bedingung für den Ausgang, Befehle wenn gesperrt, Befehle vor dem Raumwechsel |
 | `door` | Automatische Schiebetür: `true` oder `{"radius": 40, "time": 0.45, "if": …, "sound_open": …, "sound_close": …}`, siehe unten |
 | `speaker` | Hotspot ist eine Figur; ihr Text erscheint über ihr |
-| `walk_to` | Punkt, zu dem die Figur läuft (sonst unter dem Rechteck) |
+| `walk_to` | Punkt, zu dem die Figur läuft. Sonst bleibt sie neben dem Rechteck stehen, auf der Seite, von der sie kommt, mit Blick darauf und ohne es zu verdecken (passt keine Seite in die Lauffläche, oder geht sie durch einen Ausgang: unter dem Rechteck) |
 | `color`, `color_variants` | Platzhalterfarbe, je nach Bedingung |
 | `placeholder` | `false`: nichts zeichnen (nur klickbare Fläche) |
 | `sprite`, `art_variants`, `art_prompt` | Eigene Grafik und Zustände, siehe `docs/assets.md` des Spiels |

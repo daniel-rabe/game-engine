@@ -421,7 +421,7 @@ func _do_sentence(verb: String, obj1: String, obj2: String) -> void:
 	elif not inventory.has(obj1):
 		walk_target = d1
 	if view and not walk_target.is_empty():
-		await view.walk_to_hotspot(walk_target)
+		await view.walk_to_hotspot(walk_target, verb)
 	elif not walk_target.is_empty():
 		player_pos = hotspot_walk_point(walk_target)
 

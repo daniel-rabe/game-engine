@@ -457,6 +457,39 @@ func _actor_is_hires(actor: String, tex: Texture2D) -> bool:
 	return tex.get_height() > size[1]
 
 
+## Wie weit die stehende Spielfigur an Höhe y hinter und vor ihren Fußpunkt reicht (x: hinten, y: vorn;
+## Raumkoordinaten, Blick nach rechts). Gemessen an den deckenden Bildpunkten des Ruhebilds, mit Raumfeld
+## "pose" an dessen Ruhebild, damit sie neben einem Ziel stehen bleiben kann statt davor.
+func player_reach(y: float) -> Vector2:
+	var tex := _standing_frame()
+	if tex == null:
+		return Vector2(8, 8)
+	var key := "reach:%d" % tex.get_rid().get_id()
+	if not _textures.has(key):
+		var img := tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		var used := img.get_used_rect()
+		var mid := img.get_width() / 2.0
+		_textures[key] = Vector2(mid - used.position.x, used.end.x - mid)
+	var unit := 1.0 / HIRES_SCALE * depth_scale(y) if _actor_is_hires(Game.player_id, tex) else 1.0
+	return _textures[key] * unit
+
+
+func _standing_frame() -> Texture2D:
+	var pose: String = room.get("pose", "")
+	if pose != "":
+		for name in [pose + "_idle", pose]:
+			var frames := _actor_numbered(Game.player_id, name)
+			if not frames.is_empty():
+				return frames[0]
+	var idle := _actor_idle(Game.player_id)
+	if not idle.is_empty():
+		return idle[0]
+	var frames := _actor_frames(Game.player_id)
+	return frames[0] if not frames.is_empty() else null
+
+
 ## Höhe der Spielfigur in Raumkoordinaten (für Sprechtexte).
 func player_height() -> float:
 	var tex := _player_frame()

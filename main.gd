@@ -22,6 +22,7 @@ const SPEECH_WIDTHS := [380.0, 500.0, 620.0]  # erst schmal, breiter, wenn über
 const SPEECH_MIN_SIDE := 150.0  # schmaler soll der Text neben dem Kopf nicht werden
 const WALK_EASE_START := 0.45  # Anteil des Tempos im ersten Moment
 const WALK_EASE_TIME := 0.18  # Sekunden bis zum vollen Tempo
+const STAND_GAP := 2.0  # Abstand zwischen Spielfigur und Objekt, neben dem sie stehen bleibt
 const VERB_GRID := [["give", "take", "use"], ["open", "look", "push"], ["close", "talk", "pull"]]
 const INV_COLUMNS := 3
 const INV_ROWS := 2
@@ -653,13 +654,34 @@ func door_opened(h: Dictionary) -> void:
 		await get_tree().process_frame
 
 
-func walk_to_hotspot(h: Dictionary) -> void:
-	await walk_to(Game.hotspot_walk_point(h))
+func walk_to_hotspot(h: Dictionary, verb := "walk") -> void:
+	await walk_to(_stand_point(h, verb))
 	# zum Objekt drehen
 	var r: Array = h["rect"]
 	var dx: float = r[0] + r[2] / 2.0 - Game.player_pos.x
 	if absf(dx) > 2.0:
 		room_view.player_flip = dx < 0
+
+
+## Wo die Spielfigur für ein Objekt stehen bleibt: neben dem Objekt mit Blick darauf, auf der Seite, von der
+## sie kommt, so dass ihr Bild knapp an den Rand des Objekts reicht und es nicht verdeckt. Passt keine
+## Seite in die Lauffläche, hat der Hotspot "walk_to" oder geht sie durch einen Ausgang (Verb walk),
+## wie Game.hotspot_walk_point.
+func _stand_point(h: Dictionary, verb: String) -> Vector2:
+	var p := Game.hotspot_walk_point(h)
+	if h.has("walk_to") or (h.has("exit") and verb == "walk"):
+		return p
+	var r: Array = h["rect"]
+	var w: Array = Game.room().get("walk", [0, 100, 320, 144])
+	var y: float = clampf(p.y, w[1], w[3])
+	var reach: float = room_view.player_reach(y).y + STAND_GAP
+	var left: float = r[0] - reach
+	var right: float = r[0] + r[2] + reach
+	var sides := [left, right] if Game.player_pos.x < r[0] + r[2] / 2.0 else [right, left]
+	for x in sides:
+		if x >= w[0] and x <= w[2]:
+			return Vector2(x, y)
+	return p
 
 
 ## Spielt eine Aktion der Spielfigur ab und kehrt im Moment des Zugreifens zurück;
