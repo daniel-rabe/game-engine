@@ -16,6 +16,10 @@ signal choice_made(index: int)
 const ROOM_SCALE := 2.0
 const UI_TOP := 288
 const WALK_SPEED := 70.0
+const SPEECH_GAP := 8.0  # Abstand Sprechtext – Kopf
+const SPEECH_MARGIN := 4.0  # Abstand zum Bildrand
+const SPEECH_WIDTHS := [380.0, 500.0, 620.0]  # erst schmal, breiter, wenn über dem Kopf zu wenig Platz ist
+const SPEECH_MIN_SIDE := 150.0  # schmaler soll der Text neben dem Kopf nicht werden
 const WALK_EASE_START := 0.45  # Anteil des Tempos im ersten Moment
 const WALK_EASE_TIME := 0.18  # Sekunden bis zum vollen Tempo
 const VERB_GRID := [["give", "take", "use"], ["open", "look", "push"], ["close", "talk", "pull"]]
@@ -671,6 +675,75 @@ func _mouth() -> String:
 	return "small" if c.to_upper() != c else "closed"
 
 
+## Kopf der sprechenden Figur in Bildschirmkoordinaten: der Sprechtext hält davon Abstand, damit Mund und
+## Gesicht frei bleiben. Ohne Figur im Raum ein Punkt oben in der Mitte.
+func _speaker_head(who: String) -> Rect2:
+	if who == Game.player_id:
+		var h: float = room_view.player_height() * ROOM_SCALE
+		var feet := Game.player_pos * ROOM_SCALE
+		# gemalte Spielfigur: Kopf etwa im oberen Viertel, gut ein Viertel der Höhe breit
+		return Rect2(feet.x - h * 0.2, feet.y - h, h * 0.4, h * 0.3)
+	if who == Game.companion_id and room_view.show_companion:
+		var ch: float = room_view.companion_height() * ROOM_SCALE
+		var c := companion_pos * ROOM_SCALE
+		return Rect2(c.x - ch / 2, c.y - ch / 2, ch, ch)
+	# Figuren im Raum sind Hotspots mit "speaker"; der Text steht über ihnen.
+	for h in Game.visible_hotspots():
+		if h.get("speaker", "") == who:
+			var r: Array = h["rect"]
+			return Rect2(r[0] * ROOM_SCALE, r[1] * ROOM_SCALE, r[2] * ROOM_SCALE, minf(r[3], r[2]) * ROOM_SCALE)
+	return Rect2(320, 110 + SPEECH_GAP, 0, 0)
+
+
+## Höhe des Sprechtexts bei Breite w (das Textfeld wird dabei auf den Text zugeschnitten).
+func _fit_speech(w: float) -> float:
+	speech_label.size = Vector2(w, 0)
+	return speech_label.get_line_count() * (speech_label.get_line_height() + speech_label.get_theme_constant("line_spacing"))
+
+
+## Setzt den Sprechtext über den Kopf (bei Bedarf breiter, damit er hinpasst), sonst seitlich neben den Kopf,
+## immer innerhalb des Bilds. Im schmalen Ausschnitt (Raumfeld "frame") steht er im Schwarz darüber.
+func _place_speech(head: Rect2) -> void:
+	speech_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if room_view.frame().position.y > 0:
+		var fh := _fit_speech(SPEECH_WIDTHS[0])
+		speech_label.size = Vector2(SPEECH_WIDTHS[0], fh)
+		speech_label.position = Vector2(_speech_x(head.get_center().x, SPEECH_WIDTHS[0]),
+			room_view.frame().position.y * ROOM_SCALE - 6 - fh)
+		return
+	var bottom := head.position.y - SPEECH_GAP
+	for w in SPEECH_WIDTHS:
+		var th := _fit_speech(w)
+		if th <= bottom - SPEECH_MARGIN:
+			speech_label.size = Vector2(w, th)
+			speech_label.position = Vector2(_speech_x(head.get_center().x, w), bottom - th)
+			return
+	# kein Platz über dem Kopf: daneben, auf der Seite mit mehr Platz, auf Kopfhöhe
+	var left := head.position.x - SPEECH_GAP - SPEECH_MARGIN
+	var right := 640 - SPEECH_MARGIN - head.end.x - SPEECH_GAP
+	var side := minf(SPEECH_WIDTHS[0], maxf(left, right))
+	if side >= SPEECH_MIN_SIDE:
+		var th := _fit_speech(side)
+		if th <= UI_TOP - 2 * SPEECH_MARGIN:
+			speech_label.size = Vector2(side, th)
+			var y := clampf(head.position.y + head.size.y / 2 - th / 2, SPEECH_MARGIN, UI_TOP - SPEECH_MARGIN - th)
+			if right >= left:
+				speech_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+				speech_label.position = Vector2(head.end.x + SPEECH_GAP, y)
+			else:
+				speech_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				speech_label.position = Vector2(head.position.x - SPEECH_GAP - side, y)
+			return
+	# sehr langer Satz: ganz oben über die volle Breite
+	var full: float = SPEECH_WIDTHS[-1]
+	speech_label.size = Vector2(full, _fit_speech(full))
+	speech_label.position = Vector2(_speech_x(head.get_center().x, full), SPEECH_MARGIN)
+
+
+func _speech_x(center: float, w: float) -> float:
+	return clampf(center - w / 2, SPEECH_MARGIN, 640 - SPEECH_MARGIN - w)
+
+
 func say(who: String, text: String, mood := "") -> void:
 	if Game.fast:
 		return
@@ -678,27 +751,7 @@ func say(who: String, text: String, mood := "") -> void:
 	var color := Color(Game.characters.get(who, {}).get("color", "#ffffff"))
 	speech_label.add_theme_color_override("font_color", color)
 	speech_label.text = text
-	var anchor := Vector2(320, 110)
-	if who == Game.player_id:
-		anchor = (Game.player_pos - Vector2(0, room_view.player_height())) * ROOM_SCALE
-	elif who == Game.companion_id and room_view.show_companion:
-		anchor = (companion_pos - Vector2(0, room_view.companion_height() / 2)) * ROOM_SCALE
-	else:
-		# Figuren im Raum sind Hotspots mit "speaker"; der Text steht über ihnen.
-		for h in Game.visible_hotspots():
-			if h.get("speaker", "") == who:
-				var r: Array = h["rect"]
-				anchor = Vector2(r[0] + r[2] / 2.0, r[1] - 4) * ROOM_SCALE
-				break
-	var top := 0.0
-	if room_view.frame().position.y > 0:
-		# schmaler Ausschnitt (Raumfeld "frame"): alle Sätze stehen im Schwarz darüber. Das Textfeld ist unten
-		# ausgerichtet und höher als der Text, darf also oben aus dem Bild ragen
-		anchor.y = room_view.frame().position.y * ROOM_SCALE - 6
-		top = -speech_label.size.y
-	speech_label.position = Vector2(
-		clampf(anchor.x - speech_label.size.x / 2, 4, 636 - speech_label.size.x),
-		max(anchor.y - speech_label.size.y, top))
+	_place_speech(_speaker_head(who))
 	_talking = who
 	_talk_text = text
 	_talk_mood = mood

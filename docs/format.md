@@ -172,6 +172,11 @@ Option nur einmal. Im Test wird ohne Vorgabe die letzte sichtbare Option gewähl
 | `["add", zaehler, n]`, `["count", zaehler, n]` | Zähler um n erhöhen (n darf negativ sein) oder auf n setzen |
 | `["duel", id]` | Argumente-Duell starten |
 
+Der Sprechtext steht mit Abstand über dem Kopf der sprechenden Figur, damit Mund und Gesicht frei
+bleiben: bei der Spielfigur über ihrem Bild, beim Begleiter über ihm, bei anderen Figuren über dem
+Hotspot mit passendem `speaker` (der obere Teil des Rechtecks gilt als Kopf). Passt er dort nicht hin,
+wird er breiter und steht sonst seitlich neben dem Kopf, immer innerhalb des Bilds.
+
 In Sprechtexten wird `{zaehler}` durch den Zählerstand ersetzt.
 
 ## Bedingungen
